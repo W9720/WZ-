@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A10000000000000000000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000002 /* ContentView.swift */; };
-		A10000000000000000000003 /* WarZoneChangerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* WarZoneChangerApp.swift */; };
-		A10000000000000000000005 /* LocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* LocationStore.swift */; };
-		A10000000000000000000007 /* warzone.json in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000008 /* warzone.json */; };
-		A10000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000000A /* Assets.xcassets */; };
+		A100000000000000000000099 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000002 /* ContentView.swift */; };
+		A100000000000000000000003 /* WarZoneChangerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000004 /* WarZoneChangerApp.swift */; };
+		A100000000000000000000005 /* LocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000006 /* LocationStore.swift */; };
+		A100000000000000000000007 /* warzone.json in Resources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000008 /* warzone.json */; };
+		A100000000000000000000009 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000000A /* Assets.xcassets */; };
 		A10000000000000000000000B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000000C /* Preview Assets.xcassets */; };
 		A100000000000000000000010 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000011 /* PacketTunnelProvider.swift */; };
 		A100000000000000000000012 /* LocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000013 /* LocationStore.swift */; };
@@ -22,10 +22,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A10000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A10000000000000000000004 /* WarZoneChangerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarZoneChangerApp.swift; sourceTree = "<group>"; };
-		A10000000000000000000006 /* LocationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationStore.swift; sourceTree = "<group>"; };
-		A10000000000000000000008 /* warzone.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = warzone.json; sourceTree = "<group>"; };
+		A100000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		A100000000000000000000004 /* WarZoneChangerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WarZoneChangerApp.swift; sourceTree = "<group>"; };
+		A100000000000000000000006 /* LocationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationStore.swift; sourceTree = "<group>"; };
+		A100000000000000000000008 /* warzone.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = warzone.json; sourceTree = "<group>"; };
 		A10000000000000000000000A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000000C /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		A100000000000000000000011 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
@@ -69,7 +69,7 @@
 			isa = PBXGroup;
 			children = (
 				A100000000000000000000004 /* WarZoneChangerApp.swift */,
-				A10000000000000000000002 /* ContentView.swift */,
+				A100000000000000000000002 /* ContentView.swift */,
 				A10000000000000000000000A /* Assets.xcassets */,
 				A10000000000000000000000C /* Preview Assets.xcassets */,
 				A100000000000000000000006 /* LocationStore.swift */,
@@ -108,7 +108,7 @@
 			buildConfigurationList = A100000000000000000000061 /* Build configuration list for PBXNativeTarget "WarZoneChanger" */;
 			buildPhases = (
 				A100000000000000000000070 /* Sources */,
-				A100000000000000000000071 /* Frameworks */,
+				A100000000000000000000041 /* Frameworks */,
 				A100000000000000000000072 /* Resources */,
 			);
 			buildRules = (
@@ -193,7 +193,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A100000000000000000000003 /* WarZoneChangerApp.swift in Sources */,
-				A100000000000000000000001 /* ContentView.swift in Sources */,
+				A100000000000000000000099 /* ContentView.swift in Sources */,
 				A100000000000000000000005 /* LocationStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

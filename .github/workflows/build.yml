@@ -71,20 +71,28 @@ jobs:
           ls -la ./build/
           echo "Listing WarZoneChanger.app:"
           ls -la ./build/WarZoneChanger.app/
+          echo "App executable exists: $(test -f ./build/WarZoneChanger.app/WarZoneChanger && echo YES || echo NO)"
           echo "Checking entitlements file:"
           ls -la ./WarZoneChanger/WarZoneChanger.entitlements
+          echo "Entitlements exists: $(test -f ./WarZoneChanger/WarZoneChanger.entitlements && echo YES || echo NO)"
           echo "Contents of entitlements:"
           cat ./WarZoneChanger/WarZoneChanger.entitlements
+          echo "ldid version:"
+          ldid --version 2>&1 || echo "ldid not found"
           echo "Signing app..."
-          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger || { echo "Failed to sign app"; exit 1; }
+          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger 2>&1 || { echo "Failed to sign app"; exit 1; }
           echo "App signed successfully"
           echo "Checking PlugIns directory:"
           ls -la ./build/WarZoneChanger.app/PlugIns/ 2>/dev/null || echo "PlugIns directory not found"
+          if [ -d "./build/WarZoneChanger.app/PlugIns" ]; then
+            ls -la ./build/WarZoneChanger.app/PlugIns/
+          fi
           if [ -f "./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel" ]; then
             echo "Signing extension..."
             ls -la ./PacketTunnel/PacketTunnel.entitlements
+            echo "Extension entitlements exists: $(test -f ./PacketTunnel/PacketTunnel.entitlements && echo YES || echo NO)"
             cat ./PacketTunnel/PacketTunnel.entitlements
-            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel || { echo "Failed to sign extension"; exit 1; }
+            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel 2>&1 || { echo "Failed to sign extension"; exit 1; }
             echo "Extension signed successfully"
           else
             echo "PacketTunnel.appex not found, checking alternate location..."

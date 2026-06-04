@@ -3,7 +3,7 @@ import Foundation
 struct CardCodeInfo: Codable {
     let code: String
     let expiresAt: String
-    let remainingCount: Int
+    var remainingCount: Int
     let createdAt: String
     
     var expiresDate: Date? {

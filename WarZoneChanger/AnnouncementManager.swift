@@ -1,10 +1,14 @@
 import Foundation
 
-struct Announcement: Codable {
+struct Announcement: Codable, Equatable {
     let id: Int
     let title: String
     let content: String
     let createdAt: String
+    
+    static func == (lhs: Announcement, rhs: Announcement) -> Bool {
+        return lhs.id == rhs.id
+    }
 }
 
 class AnnouncementManager: ObservableObject {

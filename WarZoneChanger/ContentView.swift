@@ -378,7 +378,7 @@ struct SettingsView: View {
                                     .foregroundColor(.gray)
                                 Spacer()
                                 Text(cardInfo.code)
-                                    .font(.system(size: 14, fontDesign: .monospaced))
+                                    .font(.system(size: 14))
                             }
                             
                             HStack {
@@ -663,8 +663,7 @@ struct LocationPickerView: View {
                 name: selectedName,
                 adcode: selectedAdcode,
                 province: province.shortName,
-                city: selectedCity?.shortName ?? "",
-                district: selectedDistrict?.shortName ?? ""
+                city: selectedCity?.shortName ?? ""
             )
             selectedLocation = location
             dismiss()

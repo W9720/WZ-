@@ -47,7 +47,7 @@ jobs:
             -arch arm64 \
             CONFIGURATION_BUILD_DIR=$(pwd)/build \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+            CODE_SIGNING_REQUIRED=NO 2>&1 | head -100
 
       - name: Embed PacketTunnel extension into app
         run: |

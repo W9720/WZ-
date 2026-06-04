@@ -63,7 +63,7 @@ class AnnouncementManager: ObservableObject {
                     
                     if let success = result?["success"] as? Bool, success {
                         if let annData = result?["data"] as? [[String: Any]] {
-                            let announcements = annData.compactMap { dict in
+                            let announcements: [Announcement] = annData.compactMap { dict in
                                 guard let id = dict["id"] as? Int,
                                       let title = dict["title"] as? String,
                                       let content = dict["content"] as? String else {

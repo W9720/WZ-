@@ -660,8 +660,8 @@ struct LocationPickerView: View {
     private func selectLocation() {
         if let province = selectedProvince {
             let location = SelectedLocation(
-                name: selectedName,
                 adcode: selectedAdcode,
+                name: selectedName,
                 province: province.shortName,
                 city: selectedCity?.shortName ?? ""
             )

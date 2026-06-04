@@ -648,4 +648,4 @@ struct LocationPickerView: View {
                         .cornerRadius(12)
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 3
+                .padding(.bottom, 30)

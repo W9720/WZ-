@@ -37,11 +37,11 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: Build WarZoneChanger
+      - name: Build WarZoneChanger with extension embedded
         run: |
           xcodebuild build \
             -project WarZoneChanger.xcodeproj \
-            -target WarZoneChanger \
+            -scheme WarZoneChanger \
             -configuration Release \
             -sdk iphoneos \
             -arch arm64 \

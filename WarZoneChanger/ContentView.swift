@@ -246,9 +246,14 @@ struct ContentView: View {
                         .opacity(canStartModify ? 1.0 : 0.5)
                         
                         // 开发者信息
-                        VStack(spacing: 8) {
-                            Text("开发者")
-                                .font(.system(size: 14, weight: .semibold))
+                        VStack(spacing: 12) {
+                            HStack {
+                                Image(systemName: "music.note")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.orange)
+                                Text("开发者")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
                             
                             HStack(spacing: 12) {
                                 Image(systemName: "music.note")
@@ -262,9 +267,12 @@ struct ContentView: View {
                                         .font(.system(size: 12))
                                         .foregroundColor(.gray)
                                 }
+                                
+                                Spacer()
                             }
                         }
                         .padding(16)
+                        .frame(maxWidth: .infinity)
                         .background(Color(UIColor.systemBackground))
                         .cornerRadius(16)
                         .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)

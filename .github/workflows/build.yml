@@ -76,13 +76,20 @@ jobs:
           echo "Contents of entitlements:"
           cat ./WarZoneChanger/WarZoneChanger.entitlements
           echo "Signing app..."
-          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger
+          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger || { echo "Failed to sign app"; exit 1; }
+          echo "App signed successfully"
+          echo "Checking PlugIns directory:"
+          ls -la ./build/WarZoneChanger.app/PlugIns/ 2>/dev/null || echo "PlugIns directory not found"
           if [ -f "./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel" ]; then
             echo "Signing extension..."
-            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel
+            ls -la ./PacketTunnel/PacketTunnel.entitlements
+            cat ./PacketTunnel/PacketTunnel.entitlements
+            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel || { echo "Failed to sign extension"; exit 1; }
+            echo "Extension signed successfully"
           else
             echo "PacketTunnel.appex not found, checking alternate location..."
             find ./build -name "PacketTunnel" -type f
+            exit 1
           fi
 
       - name: Create IPA

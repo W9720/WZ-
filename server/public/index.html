@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>卡密管理后台</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f5f5f7;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+            padding: 24px;
+            margin-bottom: 24px;
+        }
+        
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            color: #1d1d1f;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            opacity: 0.9;
+            transform: translateY(-1px);
+        }
+        
+        .btn-danger {
+            background: #ff4d4f;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #ff7875;
+        }
+        
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+        
+        .form-group {
+            margin-bottom: 16px;
+        }
+        
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px 16px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        th {
+            background-color: #f8f9fa;
+            font-weight: 600;
+            color: #666;
+            font-size: 13px;
+        }
+        
+        td {
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .status-active {
+            background: #f6ffed;
+            color: #52c41a;
+        }
+        
+        .status-expired {
+            background: #fff2e8;
+            color: #fa8c16;
+        }
+        
+        .status-used {
+            background: #fff1f0;
+            color: #ff4d4f;
+        }
+        
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 20px;
+        }
+        
+        .pagination button {
+            padding: 8px 16px;
+            border: 1px solid #e0e0e0;
+            background: white;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        .pagination button:hover:not(:disabled) {
+            background: #f5f5f7;
+        }
+        
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .pagination span {
+            font-size: 14px;
+            color: #666;
+        }
+        
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        
+        .modal {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            width: 90%;
+            max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+            justify-content: flex-end;
+        }
+        
+        .btn-secondary {
+            background: #f5f5f7;
+            color: #333;
+        }
+        
+        .btn-secondary:hover {
+            background: #e8e8ed;
+        }
+        
+        .success-message {
+            background: #f6ffed;
+            color: #52c41a;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .error-message {
+            background: #fff1f0;
+            color: #ff4d4f;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .code-display {
+            background: #f5f5f7;
+            padding: 12px;
+            border-radius: 8px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        
+        .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1d1d1f;
+        }
+        
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 4px;
+        }
+        
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+            
+            table {
+                display: block;
+                overflow-x: auto;
+            }
+            
+            .header {
+                padding: 16px 20px;
+            }
+            
+            .header h1 {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>卡密管理后台</h1>
+    </div>
+    
+    <div class="container">
+        <div class="stats-grid" id="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="stat-total">0</div>
+                <div class="stat-label">总卡密数</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-active">0</div>
+                <div class="stat-label">可用卡密</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-expired">0</div>
+                <div class="stat-label">已过期</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="stat-used">0</div>
+                <div class="stat-label">已用完</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">生成卡密</div>
+            <form id="generate-form">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>生成数量</label>
+                        <input type="number" id="gen-count" value="1" min="1" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>有效期(天)</label>
+                        <input type="number" id="gen-days" value="30" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label>初始次数</label>
+                        <input type="number" id="gen-counts" value="10" min="1">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">生成卡密</button>
+            </form>
+            <div id="generated-codes" style="display: none; margin-top: 20px;">
+                <h4 style="margin-bottom: 12px;">生成的卡密:</h4>
+                <div id="codes-list"></div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">卡密列表</div>
+            <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
+                <select id="status-filter">
+                    <option value="">全部状态</option>
+                    <option value="active">可用</option>
+                    <option value="expired">已过期</option>
+                    <option value="used">已用完</option>
+                </select>
+            </div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>卡密</th>
+                        <th>剩余次数</th>
+                        <th>过期时间</th>
+                        <th>状态</th>
+                        <th>创建时间</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="cardcodes-table"></tbody>
+            </table>
+            <div class="pagination" id="pagination"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-title" id="modal-title">编辑卡密</div>
+            <form id="edit-form">
+                <input type="hidden" id="edit-id">
+                <div class="form-group">
+                    <label>卡密</label>
+                    <input type="text" id="edit-code" readonly>
+                </div>
+                <div class="form-group">
+                    <label>剩余次数</label>
+                    <input type="number" id="edit-count" min="0">
+                </div>
+                <div class="form-group">
+                    <label>过期时间</label>
+                    <input type="datetime-local" id="edit-expires">
+                </div>
+                <div class="form-group">
+                    <label>状态</label>
+                    <select id="edit-status">
+                        <option value="active">可用</option>
+                        <option value="expired">已过期</option>
+                        <option value="used">已用完</option>
+                    </select>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/';
+        let currentPage = 1;
+        let currentStatus = '';
+        let totalPages = 1;
+
+        async function fetchCardCodes(page = 1, status = '') {
+            const url = new URL(`${API_URL}cardcode/list`);
+            url.searchParams.set('page', page);
+            url.searchParams.set('limit', 20);
+            if (status) url.searchParams.set('status', status);
+
+            const response = await fetch(url);
+            const data = await response.json();
+            
+            if (data.success) {
+                renderTable(data.data);
+                totalPages = Math.ceil(data.total / 20);
+                renderPagination(data.page, totalPages);
+            }
+        }
+
+        async function fetchStats() {
+            const response = await fetch(`${API_URL}cardcode/list`);
+            const data = await response.json();
+            
+            if (data.success) {
+                const total = data.total;
+                const active = data.data.filter(c => c.status === 'active').length;
+                const expired = data.data.filter(c => c.status === 'expired').length;
+                const used = data.data.filter(c => c.status === 'used').length;
+                
+                document.getElementById('stat-total').textContent = total;
+                document.getElementById('stat-active').textContent = active;
+                document.getElementById('stat-expired').textContent = expired;
+                document.getElementById('stat-used').textContent = used;
+            }
+        }
+
+        function renderTable(codes) {
+            const tbody = document.getElementById('cardcodes-table');
+            tbody.innerHTML = '';
+
+            if (codes.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">暂无数据</td></tr>';
+                return;
+            }
+
+            codes.forEach(code => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><div class="code-display">${code.code}</div></td>
+                    <td>${code.remainingCount}</td>
+                    <td>${formatDate(code.expiresAt)}</td>
+                    <td><span class="status-badge status-${code.status}">${getStatusText(code.status)}</span></td>
+                    <td>${formatDate(code.createdAt)}</td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editCardCode(${code.id})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteCardCode(${code.id})">删除</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function renderPagination(page, total) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (total <= 1) return;
+
+            const prevBtn = document.createElement('button');
+            prevBtn.textContent = '上一页';
+            prevBtn.disabled = page === 1;
+            prevBtn.onclick = () => { if (page > 1) goToPage(page - 1); };
+            pagination.appendChild(prevBtn);
+
+            pagination.innerHTML += `<span>${page} / ${total}</span>`;
+
+            const nextBtn = document.createElement('button');
+            nextBtn.textContent = '下一页';
+            nextBtn.disabled = page === total;
+            nextBtn.onclick = () => { if (page < total) goToPage(page + 1); };
+            pagination.appendChild(nextBtn);
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            fetchCardCodes(page, currentStatus);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function getStatusText(status) {
+            const map = {
+                'active': '可用',
+                'expired': '已过期',
+                'used': '已用完'
+            };
+            return map[status] || status;
+        }
+
+        async function generateCodes() {
+            const count = document.getElementById('gen-count').value;
+            const days = document.getElementById('gen-days').value;
+            const initialCount = document.getElementById('gen-counts').value;
+
+            const response = await fetch(`${API_URL}cardcode/generate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ count: parseInt(count), days: parseInt(days), initialCount: parseInt(initialCount) })
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                const codesList = document.getElementById('codes-list');
+                codesList.innerHTML = data.codes.map(c => `<div class="code-display">${c.code} - 剩余${c.remainingCount}次 - 有效期至${formatDate(c.expiresAt)}</div>`).join('');
+                document.getElementById('generated-codes').style.display = 'block';
+                
+                fetchCardCodes(currentPage, currentStatus);
+                fetchStats();
+            } else {
+                alert(data.message || '生成失败');
+            }
+        }
+
+        function editCardCode(id) {
+            fetch(`${API_URL}cardcode/list?limit=1000`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const code = data.data.find(c => c.id === id);
+                        if (code) {
+                            document.getElementById('edit-id').value = code.id;
+                            document.getElementById('edit-code').value = code.code;
+                            document.getElementById('edit-count').value = code.remainingCount;
+                            
+                            const expires = new Date(code.expiresAt);
+                            document.getElementById('edit-expires').value = expires.toISOString().slice(0, 16);
+                            
+                            document.getElementById('edit-status').value = code.status;
+                            document.getElementById('modal').style.display = 'flex';
+                        }
+                    }
+                });
+        }
+
+        async function updateCardCode(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('edit-id').value;
+            const remainingCount = document.getElementById('edit-count').value;
+            const expiresAt = document.getElementById('edit-expires').value;
+            const status = document.getElementById('edit-status').value;
+
+            const data = {};
+            if (remainingCount !== '') data.remainingCount = parseInt(remainingCount);
+            if (expiresAt !== '') {
+                const date = new Date(expiresAt);
+                data.expiresAt = date.toISOString();
+            }
+            if (status !== '') data.status = status;
+
+            const response = await fetch(`${API_URL}cardcode/update/${id}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                closeModal();
+                fetchCardCodes(currentPage, currentStatus);
+                fetchStats();
+            } else {
+                alert(result.message || '更新失败');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+            document.getElementById('edit-form').reset();
+        }
+
+        async function deleteCardCode(id) {
+            if (!confirm('确定要删除这个卡密吗？')) return;
+
+            const response = await fetch(`${API_URL}cardcode/${id}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                fetchCardCodes(currentPage, currentStatus);
+                fetchStats();
+            } else {
+                alert(data.message || '删除失败');
+            }
+        }
+
+        document.getElementById('generate-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            generateCodes();
+        });
+
+        document.getElementById('edit-form').addEventListener('submit', updateCardCode);
+
+        document.getElementById('status-filter').addEventListener('change', (e) => {
+            currentStatus = e.target.value;
+            currentPage = 1;
+            fetchCardCodes(1, currentStatus);
+        });
+
+        document.getElementById('modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('modal')) {
+                closeModal();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchCardCodes(1, '');
+            fetchStats();
+        });
+    </script>
+</body>
+</html>

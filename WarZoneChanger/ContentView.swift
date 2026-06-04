@@ -3,84 +3,278 @@ import NetworkExtension
 
 struct ContentView: View {
     @StateObject private var vpnManager = VPNManager.shared
+    @StateObject private var cardCodeManager = CardCodeManager.shared
     @State private var showingLocationPicker = false
     @State private var selectedLocation: SelectedLocation?
+    @State private var cardCodeInput = ""
+    @State private var showCardCodeInput = false
+    @State private var showingSettings = false
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                Text("战区修改器")
-                    .font(.system(size: 28, weight: .bold))
-                    .padding(.top, 32)
-                
-                VStack(spacing: 8) {
-                    HStack(spacing: 8) {
-                        Circle()
-                            .fill(vpnManager.isConnected ? Color.green : Color.red)
-                            .frame(width: 12, height: 12)
-                        Text(vpnManager.isConnected ? "运行中" : "已停止")
-                            .font(.system(size: 18))
+            ScrollView {
+                VStack(spacing: 0) {
+                    // 顶部渐变背景
+                    LinearGradient(gradient: Gradient(colors: [Color.accentColor, Color.purple]), startPoint: .top, endPoint: .bottom)
+                        .frame(height: 200)
+                        .overlay(
+                            VStack(spacing: 16) {
+                                Image(systemName: "location.fill")
+                                    .font(.system(size: 48))
+                                    .foregroundColor(.white)
+                                
+                                Text("战区精灵")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .foregroundColor(.white)
+                                
+                                Text("轻松修改您的游戏战区")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.white.opacity(0.8))
+                            }
+                        )
+                    
+                    // 主内容区域
+                    VStack(spacing: 20) {
+                        // VPN状态卡片
+                        VStack(spacing: 12) {
+                            HStack(alignment: .center, spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(vpnManager.isConnected ? Color.green.opacity(0.2) : Color.red.opacity(0.2))
+                                        .frame(width: 48, height: 48)
+                                    
+                                    Circle()
+                                        .fill(vpnManager.isConnected ? Color.green : Color.red)
+                                        .frame(width: 20, height: 20)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text(vpnManager.isConnected ? "VPN已连接" : "VPN未连接")
+                                        .font(.system(size: 18, weight: .semibold))
+                                    Text(vpnManager.isConnected ? "战区修改中..." : "点击开始修改")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                Spacer()
+                                
+                                Image(systemName: vpnManager.isConnected ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(vpnManager.isConnected ? .green : .gray)
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .padding(.horizontal, 16)
+                        .padding(.top, -40)
+                        
+                        // 卡密信息卡片
+                        if cardCodeManager.isLoggedIn, let cardInfo = cardCodeManager.cardInfo {
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "ticket.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.orange)
+                                    Text("卡密信息")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Spacer()
+                                    Button(action: { showingSettings = true }) {
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 18))
+                                            .foregroundColor(.gray)
+                                    }
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        Text("剩余次数")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.gray)
+                                        Spacer()
+                                        Text("\(cardInfo.remainingCount) 次")
+                                            .font(.system(size: 18, weight: .bold))
+                                            .foregroundColor(cardInfo.remainingCount > 0 ? .green : .red)
+                                    }
+                                    
+                                    HStack {
+                                        Text("过期时间")
+                                            .font(.system(size: 14))
+                                            .foregroundColor(.gray)
+                                        Spacer()
+                                        Text(formatDate(cardInfo.expiresAt))
+                                            .font(.system(size: 14))
+                                            .foregroundColor(cardInfo.isExpired ? .red : .accentColor)
+                                    }
+                                }
+                            }
+                            .padding(16)
+                            .background(Color(UIColor.systemBackground))
+                            .cornerRadius(16)
+                            .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                            .padding(.horizontal, 16)
+                            
+                        } else {
+                            // 未登录卡密输入区域
+                            VStack(spacing: 12) {
+                                HStack {
+                                    Image(systemName: "lock.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.purple)
+                                    Text("请输入卡密")
+                                        .font(.system(size: 16, weight: .semibold))
+                                }
+                                
+                                TextField("请输入您的卡密", text: $cardCodeInput)
+                                    .font(.system(size: 16))
+                                    .padding(12)
+                                    .background(Color(UIColor.systemGray6))
+                                    .cornerRadius(8)
+                                    .textContentType(.oneTimeCode)
+                                
+                                Button(action: {
+                                    if !cardCodeInput.isEmpty {
+                                        cardCodeManager.validateCardCode(code: cardCodeInput)
+                                    }
+                                }) {
+                                    Text(cardCodeManager.isLoading ? "验证中..." : "验证卡密")
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(.white)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 48)
+                                        .background(Color.accentColor)
+                                        .cornerRadius(8)
+                                }
+                                .disabled(cardCodeInput.isEmpty || cardCodeManager.isLoading)
+                                .opacity(cardCodeInput.isEmpty || cardCodeManager.isLoading ? 0.5 : 1.0)
+                                
+                                if let error = cardCodeManager.errorMessage {
+                                    Text(error)
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.red)
+                                        .multilineTextAlignment(.center)
+                                }
+                            }
+                            .padding(16)
+                            .background(Color(UIColor.systemBackground))
+                            .cornerRadius(16)
+                            .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                            .padding(.horizontal, 16)
+                        }
+                        
+                        // 战区选择区域
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Image(systemName: "map.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.blue)
+                                Text("目标战区")
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            
+                            VStack(spacing: 8) {
+                                Text(selectedLocation != nil ? "\(selectedLocation!.province) \(selectedLocation!.city)" : "未选择战区")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(selectedLocation != nil ? .primary : .gray)
+                                
+                                Button(action: {
+                                    showingLocationPicker = true
+                                }) {
+                                    Text("选择战区")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.accentColor)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 44)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Color.accentColor, lineWidth: 1)
+                                        )
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .padding(.horizontal, 16)
+                        
+                        // VPN错误提示
+                        if let error = vpnManager.errorMessage {
+                            VStack(spacing: 8) {
+                                HStack {
+                                    Image(systemName: "exclamationmark.circle")
+                                        .font(.system(size: 18))
+                                        .foregroundColor(.red)
+                                    Text("错误提示")
+                                        .font(.system(size: 14, weight: .semibold))
+                                }
+                                Text(error)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.red)
+                            }
+                            .padding(16)
+                            .background(Color.red.opacity(0.1))
+                            .cornerRadius(12)
+                            .padding(.horizontal, 16)
+                        }
+                        
+                        // 操作按钮
+                        Button(action: {
+                            Task {
+                                await handleStartModify()
+                            }
+                        }) {
+                            Text(vpnManager.isConnected ? "停止修改" : "开始修改")
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(vpnManager.isConnected ? Color.red : Color.accentColor)
+                                .cornerRadius(16)
+                                .shadow(color: vpnManager.isConnected ? Color.red.opacity(0.3) : Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .disabled(!canStartModify)
+                        .opacity(canStartModify ? 1.0 : 0.5)
+                        
+                        // 开发者信息
+                        VStack(spacing: 8) {
+                            Text("开发者")
+                                .font(.system(size: 14, weight: .semibold))
+                            
+                            HStack(spacing: 12) {
+                                Image(systemName: "music.note")
+                                    .font(.system(size: 24))
+                                    .foregroundColor(.orange)
+                                
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("喜爱民谣")
+                                        .font(.system(size: 16, weight: .medium))
+                                    Text("愿每一首歌都能打动你")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .padding(.horizontal, 16)
+                        .padding(.bottom, 32)
                     }
                 }
-                .padding(.top, 16)
-                
-                Divider()
-                    .padding(.vertical, 24)
-                
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("目标战区")
-                        .font(.system(size: 14))
-                        .foregroundColor(.gray)
-                    
-                    Text(locationText)
-                        .font(.system(size: 16))
-                    
-                    Button(action: {
-                        showingLocationPicker = true
-                    }) {
-                        Text("选择战区")
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 48)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.accentColor, lineWidth: 1)
-                            )
-                    }
-                    .padding(.top, 8)
-                }
-                .padding(.horizontal, 24)
-                
-                if let error = vpnManager.errorMessage {
-                    Text(error)
-                        .font(.system(size: 14))
-                        .foregroundColor(.red)
-                        .padding(.horizontal, 24)
-                        .padding(.top, 16)
-                        .multilineTextAlignment(.center)
-                }
-                
-                Spacer()
-                
-                Button(action: {
-                    vpnManager.toggleVPN()
-                }) {
-                    Text(vpnManager.isConnected ? "停止修改" : "开始修改")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
-                        .background(vpnManager.isConnected ? Color.red : Color.accentColor)
-                        .cornerRadius(12)
-                }
-                .padding(.horizontal, 24)
-                .padding(.bottom, 32)
-                .disabled(selectedLocation == nil && !vpnManager.isConnected)
-                .opacity(selectedLocation == nil && !vpnManager.isConnected ? 0.5 : 1.0)
             }
             .navigationBarHidden(true)
+            .background(Color(UIColor.systemGray5))
         }
         .sheet(isPresented: $showingLocationPicker) {
             LocationPickerView(selectedLocation: $selectedLocation)
+        }
+        .sheet(isPresented: $showingSettings) {
+            SettingsView()
         }
         .onAppear {
             selectedLocation = LocationStore.shared.getSelectedLocation()
@@ -98,11 +292,119 @@ struct ContentView: View {
         }
     }
     
-    private var locationText: String {
-        if let loc = selectedLocation {
-            return "当前战区: \(loc.province) \(loc.city) (\(loc.adcode))"
+    private var canStartModify: Bool {
+        cardCodeManager.isLoggedIn && 
+        cardCodeManager.cardInfo?.remainingCount ?? 0 > 0 && 
+        selectedLocation != nil && 
+        !vpnManager.isConnected
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let outputFormatter = DateFormatter()
+            outputFormatter.dateFormat = "yyyy-MM-dd"
+            return outputFormatter.string(from: date)
         }
-        return "未选择战区"
+        return dateString
+    }
+    
+    private func handleStartModify() async {
+        if !cardCodeManager.isLoggedIn {
+            vpnManager.errorMessage = "请先输入卡密验证"
+            return
+        }
+        
+        if let cardInfo = cardCodeManager.cardInfo, cardInfo.remainingCount <= 0 {
+            vpnManager.errorMessage = "卡密剩余次数不足"
+            return
+        }
+        
+        do {
+            let success = try await cardCodeManager.deductCount()
+            if success {
+                vpnManager.startVPN()
+            }
+        } catch {
+            vpnManager.errorMessage = error.localizedDescription
+        }
+    }
+}
+
+struct SettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var cardCodeManager = CardCodeManager.shared
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 16) {
+                if let cardInfo = cardCodeManager.cardInfo {
+                    VStack(spacing: 12) {
+                        Text("卡密详情")
+                            .font(.system(size: 18, weight: .semibold))
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack {
+                                Text("卡密")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                Spacer()
+                                Text(cardInfo.code)
+                                    .font(.system(size: 14, fontDesign: .monospaced))
+                            }
+                            
+                            HStack {
+                                Text("创建时间")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                                Spacer()
+                                Text(formatDate(cardInfo.createdAt))
+                                    .font(.system(size: 14))
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(UIColor.systemGray6))
+                        .cornerRadius(8)
+                    }
+                    .padding(.horizontal, 16)
+                }
+                
+                Button(action: {
+                    cardCodeManager.logout()
+                    dismiss()
+                }) {
+                    Text("退出登录")
+                        .font(.system(size: 16))
+                        .foregroundColor(.red)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 48)
+                        .background(Color.red.opacity(0.1))
+                        .cornerRadius(8)
+                }
+                .padding(.horizontal, 16)
+                
+                Spacer()
+            }
+            .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func formatDate(_ dateString: String) -> String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: dateString) {
+            let outputFormatter = DateFormatter()
+            outputFormatter.dateFormat = "yyyy-MM-dd HH:mm"
+            return outputFormatter.string(from: date)
+        }
+        return dateString
     }
 }
 
@@ -314,191 +616,8 @@ struct LocationPickerView: View {
                     if selectedProvince != nil {
                         selectLocation()
                     }
-                }) {
-                    Text("确认选择")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 56)
                         .background(Color.accentColor)
                         .cornerRadius(12)
                 }
                 .padding(.horizontal, 24)
-                .padding(.bottom, 32)
-                .disabled(selectedProvince == nil)
-                .opacity(selectedProvince == nil ? 0.5 : 1.0)
-            }
-            .navigationTitle("选择战区")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .onAppear {
-            // 初始化已选择的位置
-            if let loc = selectedLocation {
-                // 尝试找到对应的省份、城市、区县
-                let adcodeInt = Int(loc.adcode) ?? 0
-                let provinceCode = adcodeInt / 10000 * 10000
-                let cityCode = adcodeInt / 100 * 100
-                
-                selectedProvince = allRegions.first { $0.adcode == provinceCode }
-                
-                if let province = selectedProvince {
-                    if cityCode != provinceCode {
-                        selectedCity = province.list?.first { $0.adcode == cityCode }
-                        
-                        if let city = selectedCity, adcodeInt != cityCode {
-                            selectedDistrict = city.list?.first { $0.adcode == adcodeInt }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private func selectLocation() {
-        let provinceName = selectedProvince!.shortName
-        let cityName = selectedCity?.shortName ?? ""
-        let districtName = selectedDistrict?.shortName ?? ""
-        
-        let displayName: String
-        if let district = selectedDistrict {
-            displayName = district.shortName
-        } else if let city = selectedCity {
-            displayName = city.shortName
-        } else {
-            displayName = provinceName
-        }
-        
-        selectedLocation = SelectedLocation(
-            adcode: selectedAdcode,
-            name: displayName,
-            province: provinceName,
-            city: cityName.isEmpty ? provinceName : cityName
-        )
-        dismiss()
-    }
-}
-
-class VPNManager: ObservableObject {
-    static let shared = VPNManager()
-    
-    @Published var isConnected = false
-    @Published var errorMessage: String?
-    
-    private var manager: NETunnelProviderManager?
-    
-    private init() {}
-    
-    func checkStatus() {
-        errorMessage = nil
-        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
-            guard let self = self else { return }
-            
-            if let error = error {
-                print("Failed to load VPN managers: \(error)")
-                return
-            }
-            
-            self.manager = managers?.first
-            DispatchQueue.main.async {
-                self.isConnected = self.manager?.connection.status == .connected
-            }
-        }
-    }
-    
-    func toggleVPN() {
-        if isConnected {
-            stopVPN()
-        } else {
-            startVPN()
-        }
-    }
-    
-    private func startVPN() {
-        errorMessage = nil
-        
-        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
-            guard let self = self else { return }
-            
-            if let error = error {
-                print("Failed to load VPN managers: \(error)")
-                DispatchQueue.main.async {
-                    self.errorMessage = "无法加载VPN配置: \(error.localizedDescription)"
-                }
-                return
-            }
-            
-            let vpnManager: NETunnelProviderManager
-            if let existing = managers?.first {
-                vpnManager = existing
-            } else {
-                vpnManager = NETunnelProviderManager()
-                vpnManager.localizedDescription = "战区修改器"
-                
-                let protocolConfig = NETunnelProviderProtocol()
-                protocolConfig.providerBundleIdentifier = "com.warzone.changer.PacketTunnel"
-                protocolConfig.serverAddress = "10.0.0.1"
-                vpnManager.protocolConfiguration = protocolConfig
-            }
-            
-            vpnManager.isEnabled = true
-            
-            vpnManager.saveToPreferences { [weak self] error in
-                guard let self = self else { return }
-                
-                if let error = error {
-                    print("Failed to save VPN config: \(error)")
-                    DispatchQueue.main.async {
-                        self.errorMessage = "无法保存VPN配置: \(error.localizedDescription)"
-                    }
-                    return
-                }
-                
-                vpnManager.loadFromPreferences { [weak self] error in
-                    guard let self = self else { return }
-                    
-                    if let error = error {
-                        print("Failed to load VPN config: \(error)")
-                        DispatchQueue.main.async {
-                            self.errorMessage = "无法加载VPN配置: \(error.localizedDescription)"
-                        }
-                        return
-                    }
-                    
-                    do {
-                        try vpnManager.connection.startVPNTunnel()
-                        DispatchQueue.main.async {
-                            self.isConnected = true
-                            self.manager = vpnManager
-                        }
-                    } catch {
-                        print("Failed to start VPN: \(error)")
-                        DispatchQueue.main.async {
-                            self.errorMessage = "VPN启动失败，请检查系统设置是否允许VPN"
-                        }
-                    }
-                }
-            }
-        }
-    }
-    
-    private func stopVPN() {
-        manager?.connection.stopVPNTunnel()
-        DispatchQueue.main.async {
-            self.isConnected = false
-            self.errorMessage = nil
-        }
-    }
-}
-
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
-}
+                .padding(.bottom, 3

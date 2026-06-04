@@ -106,11 +106,19 @@ struct ContentView: View {
     }
 }
 
-struct Region: Codable {
+struct Region: Codable, Hashable {
     let adcode: Int
     let shortName: String
     let fullName: String
     let list: [Region]?
+    
+    static func == (lhs: Region, rhs: Region) -> Bool {
+        return lhs.adcode == rhs.adcode
+    }
+    
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(adcode)
+    }
 }
 
 class RegionData {

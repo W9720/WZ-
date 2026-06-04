@@ -130,6 +130,7 @@ struct ContentView: View {
                                         .foregroundColor(.purple)
                                     Text("请输入卡密")
                                         .font(.system(size: 16, weight: .semibold))
+                                    Spacer()
                                 }
                                 
                                 TextField("请输入您的卡密", text: $cardCodeInput)
@@ -248,6 +249,9 @@ struct ContentView: View {
                         // 作者信息
                         VStack(spacing: 12) {
                             HStack {
+                                Image(systemName: "person.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.purple)
                                 Text("作者信息")
                                     .font(.system(size: 16, weight: .semibold))
                                 Spacer()

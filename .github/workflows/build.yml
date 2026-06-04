@@ -19,11 +19,9 @@ jobs:
         with:
           xcode-version: 15.4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
       - name: Show project info
         run: |
+          xcodebuild -version
           ls -la
           xcodebuild -list -project WarZoneChanger.xcodeproj
 
@@ -45,26 +43,22 @@ jobs:
             -sdk iphonesimulator \
             CODE_SIGNING_ALLOWED=NO
 
-      - name: Find app and create IPA
+      - name: Create IPA
         run: |
           APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "WarZoneChanger.app" -type d 2>/dev/null | head -1)
           
           if [ -z "$APP_PATH" ]; then
-            echo "Looking for app in build folder..."
-            find . -name "*.app" -type d 2>/dev/null
+            echo "Could not find app"
+            find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null
             exit 1
           fi
           
           echo "Found app at: $APP_PATH"
-          ls -la "$APP_PATH"
-          
           mkdir -p build/Payload
           cp -R "$APP_PATH" build/Payload/
-          
           cd build
           zip -r WarZoneChanger.ipa Payload
           cd ..
-          
           ls -la build/WarZoneChanger.ipa
 
       - name: Upload IPA

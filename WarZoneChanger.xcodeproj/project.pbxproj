@@ -355,6 +355,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				APP_GROUP_IDENTIFIERS = "group.com.warzone.changer";
+				ENABLE_APP_GROUPS = YES;
 			};
 			name = Debug;
 		};
@@ -378,6 +380,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+				APP_GROUP_IDENTIFIERS = "group.com.warzone.changer";
+				ENABLE_APP_GROUPS = YES;
 			};
 			name = Release;
 		};
@@ -399,6 +403,8 @@
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				APP_GROUP_IDENTIFIERS = "group.com.warzone.changer";
+				ENABLE_APP_GROUPS = YES;
 			};
 			name = Debug;
 		};
@@ -420,6 +426,8 @@
 				SKIP_INSTALL = YES;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
+				APP_GROUP_IDENTIFIERS = "group.com.warzone.changer";
+				ENABLE_APP_GROUPS = YES;
 			};
 			name = Release;
 		};

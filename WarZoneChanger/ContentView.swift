@@ -50,6 +50,15 @@ struct ContentView: View {
                 }
                 .padding(.horizontal, 24)
                 
+                if let error = vpnManager.errorMessage {
+                    Text(error)
+                        .font(.system(size: 14))
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 24)
+                        .padding(.top, 16)
+                        .multilineTextAlignment(.center)
+                }
+                
                 Spacer()
                 
                 Button(action: {
@@ -257,12 +266,14 @@ class VPNManager: ObservableObject {
     static let shared = VPNManager()
     
     @Published var isConnected = false
+    @Published var errorMessage: String?
     
     private var manager: NETunnelProviderManager?
     
     private init() {}
     
     func checkStatus() {
+        errorMessage = nil
         NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
             guard let self = self else { return }
             
@@ -287,11 +298,16 @@ class VPNManager: ObservableObject {
     }
     
     private func startVPN() {
+        errorMessage = nil
+        
         NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
             guard let self = self else { return }
             
             if let error = error {
                 print("Failed to load VPN managers: \(error)")
+                DispatchQueue.main.async {
+                    self.errorMessage = "无法加载VPN配置: \(error.localizedDescription)"
+                }
                 return
             }
             
@@ -315,6 +331,9 @@ class VPNManager: ObservableObject {
                 
                 if let error = error {
                     print("Failed to save VPN config: \(error)")
+                    DispatchQueue.main.async {
+                        self.errorMessage = "无法保存VPN配置: \(error.localizedDescription)"
+                    }
                     return
                 }
                 
@@ -323,6 +342,9 @@ class VPNManager: ObservableObject {
                     
                     if let error = error {
                         print("Failed to load VPN config: \(error)")
+                        DispatchQueue.main.async {
+                            self.errorMessage = "无法加载VPN配置: \(error.localizedDescription)"
+                        }
                         return
                     }
                     
@@ -334,6 +356,9 @@ class VPNManager: ObservableObject {
                         }
                     } catch {
                         print("Failed to start VPN: \(error)")
+                        DispatchQueue.main.async {
+                            self.errorMessage = "VPN启动失败，请检查系统设置是否允许VPN"
+                        }
                     }
                 }
             }
@@ -344,6 +369,7 @@ class VPNManager: ObservableObject {
         manager?.connection.stopVPNTunnel()
         DispatchQueue.main.async {
             self.isConnected = false
+            self.errorMessage = nil
         }
     }
 }

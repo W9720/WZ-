@@ -47,7 +47,18 @@ jobs:
             -arch arm64 \
             CONFIGURATION_BUILD_DIR=$(pwd)/build \
             CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO 2>&1 | head -100
+            CODE_SIGNING_REQUIRED=NO 2>&1 | head -150
+          echo "=== Build completed, checking output ==="
+          ls -la ./build/WarZoneChanger.app/
+          echo "=== Checking for executable ==="
+          if [ -f "./build/WarZoneChanger.app/WarZoneChanger" ]; then
+            echo "Executable found"
+            file ./build/WarZoneChanger.app/WarZoneChanger
+          else
+            echo "Executable NOT found!"
+            find ./build -name "WarZoneChanger" -type f
+            exit 1
+          fi
 
       - name: Embed PacketTunnel extension into app
         run: |

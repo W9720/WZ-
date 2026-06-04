@@ -644,8 +644,30 @@ struct LocationPickerView: View {
                     if selectedProvince != nil {
                         selectLocation()
                     }
-                        .background(Color.accentColor)
-                        .cornerRadius(12)
+                }) {
+                    Text("确认选择")
+                        .foregroundColor(.white)
+                        .padding()
                 }
+                .background(Color.accentColor)
+                .cornerRadius(12)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 30)
+            }
+        }
+    }
+    
+    private func selectLocation() {
+        if let province = selectedProvince {
+            let location = SelectedLocation(
+                name: selectedName,
+                adcode: selectedAdcode,
+                province: province.shortName,
+                city: selectedCity?.shortName ?? "",
+                district: selectedDistrict?.shortName ?? ""
+            )
+            selectedLocation = location
+            dismiss()
+        }
+    }
+}

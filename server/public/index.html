@@ -364,6 +364,25 @@
         </div>
 
         <div class="card">
+            <div class="card-title">公告管理</div>
+            <button class="btn btn-primary" onclick="showCreateAnnouncementModal()">发布公告</button>
+            
+            <table style="margin-top: 16px;">
+                <thead>
+                    <tr>
+                        <th>标题</th>
+                        <th>内容</th>
+                        <th>发布时间</th>
+                        <th>状态</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="announcements-table"></tbody>
+            </table>
+            <div class="pagination" id="announcement-pagination"></div>
+        </div>
+
+        <div class="card">
             <div class="card-title">卡密列表</div>
             <div style="margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap;">
                 <select id="status-filter">
@@ -655,10 +674,149 @@
             }
         });
 
+        // 公告管理功能
+        async function fetchAnnouncements() {
+            const response = await fetch(`${API_URL}announcement/list?limit=50`);
+            const data = await response.json();
+            
+            if (data.success) {
+                renderAnnouncementTable(data.data);
+            }
+        }
+
+        function renderAnnouncementTable(announcements) {
+            const tbody = document.getElementById('announcements-table');
+            tbody.innerHTML = '';
+
+            if (announcements.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">暂无公告</td></tr>';
+                return;
+            }
+
+            announcements.forEach(ann => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${ann.title}</td>
+                    <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${ann.content}</td>
+                    <td>${formatDate(ann.createdAt)}</td>
+                    <td><span class="status-badge ${ann.active ? 'status-active' : 'status-expired'}">${ann.active ? '发布中' : '已停用'}</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-primary" onclick="editAnnouncement(${ann.id})">编辑</button>
+                        <button class="btn btn-sm btn-danger" onclick="deleteAnnouncement(${ann.id})">删除</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function showCreateAnnouncementModal() {
+            document.getElementById('ann-modal-title').textContent = '发布公告';
+            document.getElementById('ann-id').value = '';
+            document.getElementById('ann-title').value = '';
+            document.getElementById('ann-content').value = '';
+            document.getElementById('announcement-modal').style.display = 'flex';
+        }
+
+        function editAnnouncement(id) {
+            fetch(`${API_URL}announcement/${id}`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        document.getElementById('ann-modal-title').textContent = '编辑公告';
+                        document.getElementById('ann-id').value = data.data.id;
+                        document.getElementById('ann-title').value = data.data.title;
+                        document.getElementById('ann-content').value = data.data.content;
+                        document.getElementById('announcement-modal').style.display = 'flex';
+                    }
+                });
+        }
+
+        async function saveAnnouncement(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('ann-id').value;
+            const title = document.getElementById('ann-title').value;
+            const content = document.getElementById('ann-content').value;
+
+            if (!title || !content) {
+                alert('请填写标题和内容');
+                return;
+            }
+
+            const url = id ? `${API_URL}announcement/update/${id}` : `${API_URL}announcement/create`;
+            const method = id ? 'POST' : 'POST';
+            
+            const response = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ title, content })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                closeAnnouncementModal();
+                fetchAnnouncements();
+            } else {
+                alert(result.message || '操作失败');
+            }
+        }
+
+        function closeAnnouncementModal() {
+            document.getElementById('announcement-modal').style.display = 'none';
+            document.getElementById('announcement-form').reset();
+        }
+
+        async function deleteAnnouncement(id) {
+            if (!confirm('确定要删除这个公告吗？')) return;
+
+            const response = await fetch(`${API_URL}announcement/${id}`, {
+                method: 'DELETE'
+            });
+
+            const data = await response.json();
+            
+            if (data.success) {
+                fetchAnnouncements();
+            } else {
+                alert(data.message || '删除失败');
+            }
+        }
+
+        document.getElementById('announcement-form').addEventListener('submit', saveAnnouncement);
+
+        document.getElementById('announcement-modal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('announcement-modal')) {
+                closeAnnouncementModal();
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', () => {
             fetchCardCodes(1, '');
             fetchStats();
+            fetchAnnouncements();
         });
     </script>
+
+    <div class="modal-overlay" id="announcement-modal" style="display: none;">
+        <div class="modal">
+            <div class="modal-title" id="ann-modal-title">发布公告</div>
+            <form id="announcement-form">
+                <input type="hidden" id="ann-id">
+                <div class="form-group">
+                    <label>标题</label>
+                    <input type="text" id="ann-title" placeholder="请输入公告标题">
+                </div>
+                <div class="form-group">
+                    <label>内容</label>
+                    <textarea id="ann-content" rows="4" placeholder="请输入公告内容"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeAnnouncementModal()">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

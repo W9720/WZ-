@@ -4,11 +4,14 @@ import NetworkExtension
 struct ContentView: View {
     @StateObject private var vpnManager = VPNManager.shared
     @StateObject private var cardCodeManager = CardCodeManager.shared
+    @StateObject private var announcementManager = AnnouncementManager.shared
     @State private var showingLocationPicker = false
     @State private var selectedLocation: SelectedLocation?
     @State private var cardCodeInput = ""
     @State private var showCardCodeInput = false
     @State private var showingSettings = false
+    @State private var currentAnnouncement: Announcement?
+    @State private var showingAnnouncement = false
     
     var body: some View {
         NavigationView {
@@ -279,6 +282,7 @@ struct ContentView: View {
         .onAppear {
             selectedLocation = LocationStore.shared.getSelectedLocation()
             vpnManager.checkStatus()
+            fetchAnnouncements()
         }
         .onChange(of: selectedLocation) { newLocation in
             if let loc = newLocation {
@@ -290,6 +294,30 @@ struct ContentView: View {
                 )
             }
         }
+        .onChange(of: announcementManager.unreadAnnouncements) { announcements in
+            if let first = announcements.first, !showingAnnouncement {
+                currentAnnouncement = first
+                showingAnnouncement = true
+            }
+        }
+        .alert(isPresented: $showingAnnouncement) {
+            if let ann = currentAnnouncement {
+                return Alert(
+                    title: Text(ann.title),
+                    message: Text(ann.content),
+                    dismissButton: .default(Text("我知道了")) {
+                        if let id = currentAnnouncement?.id {
+                            announcementManager.markAsRead(announcementId: id)
+                        }
+                    }
+                )
+            }
+            return Alert(title: Text("公告"))
+        }
+    }
+    
+    private func fetchAnnouncements() {
+        announcementManager.fetchUnreadAnnouncements()
     }
     
     private var canStartModify: Bool {

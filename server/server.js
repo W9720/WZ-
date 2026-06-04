@@ -33,6 +33,33 @@ function initDatabase() {
       console.error('创建表失败:', err.message);
     }
   });
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      active INTEGER DEFAULT 1
+    )
+  `, (err) => {
+    if (err) {
+      console.error('创建公告表失败:', err.message);
+    }
+  });
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS user_announcements (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id TEXT NOT NULL,
+      announcement_id INTEGER NOT NULL,
+      read_at TEXT
+    )
+  `, (err) => {
+    if (err) {
+      console.error('创建用户公告表失败:', err.message);
+    }
+  });
 }
 
 app.get('/', (req, res) => {
@@ -263,6 +290,189 @@ app.post('/cardcode/update/:id', (req, res) => {
     }
     
     res.json({ success: true, message: '更新成功' });
+  });
+});
+
+// 公告管理 API
+
+app.post('/announcement/create', (req, res) => {
+  const { title, content } = req.body;
+  
+  if (!title || !content) {
+    return res.json({ success: false, message: '请填写标题和内容' });
+  }
+  
+  const createdAt = new Date().toISOString();
+  
+  db.run('INSERT INTO announcements (title, content, created_at) VALUES (?, ?, ?)', [title, content, createdAt], (err) => {
+    if (err) {
+      return res.json({ success: false, message: '创建失败: ' + err.message });
+    }
+    
+    res.json({
+      success: true,
+      message: '公告发布成功',
+      data: { id: this.lastID, title, content, createdAt }
+    });
+  });
+});
+
+app.get('/announcement/list', (req, res) => {
+  const { page = 1, limit = 20 } = req.query;
+  const offset = (page - 1) * limit;
+  
+  db.all('SELECT * FROM announcements ORDER BY created_at DESC LIMIT ? OFFSET ?', [parseInt(limit), parseInt(offset)], (err, rows) => {
+    if (err) {
+      return res.json({ success: false, message: '查询失败' });
+    }
+    
+    db.get('SELECT COUNT(*) as total FROM announcements', (err, countRow) => {
+      res.json({
+        success: true,
+        data: rows.map(row => ({
+          id: row.id,
+          title: row.title,
+          content: row.content,
+          createdAt: row.created_at,
+          active: row.active === 1
+        })),
+        total: countRow?.total || 0,
+        page: parseInt(page),
+        limit: parseInt(limit)
+      });
+    });
+  });
+});
+
+app.get('/announcement/:id', (req, res) => {
+  const { id } = req.params;
+  
+  db.get('SELECT * FROM announcements WHERE id = ?', [id], (err, row) => {
+    if (err) {
+      return res.json({ success: false, message: '查询失败' });
+    }
+    
+    if (!row) {
+      return res.json({ success: false, message: '公告不存在' });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        createdAt: row.created_at,
+        active: row.active === 1
+      }
+    });
+  });
+});
+
+app.post('/announcement/update/:id', (req, res) => {
+  const { id } = req.params;
+  const { title, content, active } = req.body;
+  
+  let updates = [];
+  let params = [];
+  
+  if (title) {
+    updates.push('title = ?');
+    params.push(title);
+  }
+  if (content) {
+    updates.push('content = ?');
+    params.push(content);
+  }
+  if (active !== undefined) {
+    updates.push('active = ?');
+    params.push(active ? 1 : 0);
+  }
+  
+  if (updates.length === 0) {
+    return res.json({ success: false, message: '没有需要更新的字段' });
+  }
+  
+  params.push(id);
+  
+  db.run(`UPDATE announcements SET ${updates.join(', ')} WHERE id = ?`, params, (err) => {
+    if (err) {
+      return res.json({ success: false, message: '更新失败' });
+    }
+    
+    res.json({ success: true, message: '更新成功' });
+  });
+});
+
+app.delete('/announcement/:id', (req, res) => {
+  const { id } = req.params;
+  
+  db.run('DELETE FROM announcements WHERE id = ?', [id], (err) => {
+    if (err) {
+      return res.json({ success: false, message: '删除失败' });
+    }
+    
+    res.json({ success: true, message: '删除成功' });
+  });
+});
+
+// 用户获取未读公告
+app.post('/announcement/unread', (req, res) => {
+  const { userId } = req.body;
+  
+  if (!userId) {
+    return res.json({ success: false, message: '用户ID不能为空' });
+  }
+  
+  db.all(`
+    SELECT a.* 
+    FROM announcements a
+    LEFT JOIN user_announcements ua ON a.id = ua.announcement_id AND ua.user_id = ?
+    WHERE ua.id IS NULL AND a.active = 1
+    ORDER BY a.created_at DESC
+  `, [userId], (err, rows) => {
+    if (err) {
+      return res.json({ success: false, message: '查询失败' });
+    }
+    
+    res.json({
+      success: true,
+      data: rows.map(row => ({
+        id: row.id,
+        title: row.title,
+        content: row.content,
+        createdAt: row.created_at
+      }))
+    });
+  });
+});
+
+// 标记公告为已读
+app.post('/announcement/mark-read', (req, res) => {
+  const { userId, announcementId } = req.body;
+  
+  if (!userId || !announcementId) {
+    return res.json({ success: false, message: '参数不完整' });
+  }
+  
+  db.get('SELECT * FROM user_announcements WHERE user_id = ? AND announcement_id = ?', [userId, announcementId], (err, row) => {
+    if (err) {
+      return res.json({ success: false, message: '查询失败' });
+    }
+    
+    if (row) {
+      return res.json({ success: true, message: '已标记为已读' });
+    }
+    
+    const readAt = new Date().toISOString();
+    
+    db.run('INSERT INTO user_announcements (user_id, announcement_id, read_at) VALUES (?, ?, ?)', [userId, announcementId, readAt], (err) => {
+      if (err) {
+        return res.json({ success: false, message: '标记失败' });
+      }
+      
+      res.json({ success: true, message: '标记成功' });
+    });
   });
 });
 

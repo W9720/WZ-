@@ -53,10 +53,21 @@ jobs:
         run: |
           brew install ldid
 
+      - name: Check build structure
+        run: |
+          ls -la ./build/
+          ls -la ./build/WarZoneChanger.app/
+          ls -la ./build/WarZoneChanger.app/PlugIns/ 2>/dev/null || echo "No PlugIns folder"
+
       - name: Sign app with entitlements
         run: |
           ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger
-          ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel
+          if [ -f "./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel" ]; then
+            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel
+          else
+            echo "PacketTunnel.appex not found, checking alternate location..."
+            find ./build -name "PacketTunnel" -type f
+          fi
 
       - name: Create IPA
         run: |

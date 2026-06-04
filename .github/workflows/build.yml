@@ -49,6 +49,15 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
+      - name: Install ldid for jailbroken signing
+        run: |
+          brew install ldid
+
+      - name: Sign app with entitlements
+        run: |
+          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger
+          ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel
+
       - name: Create IPA
         run: |
           APP_PATH=./build/WarZoneChanger.app

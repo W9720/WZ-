@@ -210,6 +210,10 @@ struct LocationPickerView: View {
                         RoundedRectangle(cornerRadius: 8)
                             .stroke(selectedProvince == nil ? Color.gray.opacity(0.3) : Color.accentColor, lineWidth: 1)
                     )
+                    .onChange(of: selectedProvince) { _ in
+                        selectedCity = nil
+                        selectedDistrict = nil
+                    }
                 }
                 
                 // 城市选择
@@ -236,6 +240,9 @@ struct LocationPickerView: View {
                     )
                     .disabled(selectedProvince == nil)
                     .opacity(selectedProvince == nil ? 0.5 : 1.0)
+                    .onChange(of: selectedCity) { _ in
+                        selectedDistrict = nil
+                    }
                 }
                 
                 // 区县选择

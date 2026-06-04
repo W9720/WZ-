@@ -16,12 +16,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Show Xcode version
-        run: xcodebuild -version
-
-      - name: List targets
-        run: xcodebuild -list -project WarZoneChanger.xcodeproj
-
       - name: Build for iOS Simulator
         run: |
           xcodebuild clean build \
@@ -29,5 +23,4 @@ jobs:
             -target WarZoneChanger \
             -configuration Debug \
             -sdk iphonesimulator \
-            CODE_SIGNING_ALLOWED=NO \
-            ONLY_ACTIVE_ARCH=YES
+            CODE_SIGNING_ALLOWED=NO

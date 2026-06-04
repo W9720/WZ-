@@ -245,31 +245,27 @@ struct ContentView: View {
                         .disabled(!canStartModify)
                         .opacity(canStartModify ? 1.0 : 0.5)
                         
-                        // 开发者信息
+                        // 作者信息
                         VStack(spacing: 12) {
                             HStack {
-                                Image(systemName: "music.note")
-                                    .font(.system(size: 20))
-                                    .foregroundColor(.orange)
-                                Text("开发者")
+                                Text("作者信息")
                                     .font(.system(size: 16, weight: .semibold))
-                            }
-                            
-                            HStack(spacing: 12) {
-                                Image(systemName: "music.note")
-                                    .font(.system(size: 24))
-                                    .foregroundColor(.orange)
-                                
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("喜爱民谣")
-                                        .font(.system(size: 16, weight: .medium))
-                                    Text("愿每一首歌都能打动你")
-                                        .font(.system(size: 12))
-                                        .foregroundColor(.gray)
-                                }
-                                
                                 Spacer()
                             }
+                            
+                            VStack(spacing: 4) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "music.note")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.orange)
+                                    Text("喜爱民谣")
+                                        .font(.system(size: 16, weight: .medium))
+                                }
+                                Text("愿每一首歌都能打动你")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .center)
                         }
                         .padding(16)
                         .frame(maxWidth: .infinity)

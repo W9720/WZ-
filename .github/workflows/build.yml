@@ -37,17 +37,22 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
 
-      - name: Build WarZoneChanger with extension embedded
+      - name: Build WarZoneChanger
         run: |
           xcodebuild build \
             -project WarZoneChanger.xcodeproj \
-            -scheme WarZoneChanger \
+            -target WarZoneChanger \
             -configuration Release \
             -sdk iphoneos \
             -arch arm64 \
             CONFIGURATION_BUILD_DIR=$(pwd)/build \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO
+
+      - name: Embed PacketTunnel extension into app
+        run: |
+          mkdir -p ./build/WarZoneChanger.app/PlugIns
+          cp -R ./build/PacketTunnel.appex ./build/WarZoneChanger.app/PlugIns/
 
       - name: Install ldid for jailbroken signing
         run: |

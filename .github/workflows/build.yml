@@ -32,6 +32,7 @@ jobs:
             -target PacketTunnel \
             -configuration Release \
             -sdk iphonesimulator \
+            -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Build WarZoneChanger
@@ -41,30 +42,31 @@ jobs:
             -target WarZoneChanger \
             -configuration Release \
             -sdk iphonesimulator \
+            -derivedDataPath ./build \
             CODE_SIGNING_ALLOWED=NO
 
       - name: Create IPA
         run: |
-          APP_PATH=$(find ~/Library/Developer/Xcode/DerivedData -name "WarZoneChanger.app" -type d 2>/dev/null | head -1)
+          APP_PATH=./build/Build/Products/Release-iphonesimulator/WarZoneChanger.app
           
-          if [ -z "$APP_PATH" ]; then
-            echo "Could not find app"
-            find ~/Library/Developer/Xcode/DerivedData -name "*.app" -type d 2>/dev/null
+          if [ ! -d "$APP_PATH" ]; then
+            echo "Could not find app at $APP_PATH"
+            ls -la ./build/Build/Products/Release-iphonesimulator/
             exit 1
           fi
           
           echo "Found app at: $APP_PATH"
-          mkdir -p build/Payload
-          cp -R "$APP_PATH" build/Payload/
-          cd build
+          mkdir -p ./ipa/Payload
+          cp -R "$APP_PATH" ./ipa/Payload/
+          cd ./ipa
           zip -r WarZoneChanger.ipa Payload
           cd ..
-          ls -la build/WarZoneChanger.ipa
+          ls -la ./ipa/WarZoneChanger.ipa
 
       - name: Upload IPA
         if: success()
         uses: actions/upload-artifact@v4
         with:
           name: WarZoneChanger-IPA
-          path: build/WarZoneChanger.ipa
+          path: ipa/WarZoneChanger.ipa
           retention-days: 90

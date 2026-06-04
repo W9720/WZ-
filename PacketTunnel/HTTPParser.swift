@@ -21,8 +21,8 @@ struct HTTPResponse {
     let headers: [String: String]
     let body: Data
     
-    init(statusCode: Int, statusMessage: String, headers: [String: String] = [:], body: Data = Data()) {
-        self.version = "HTTP/1.1"
+    init(version: String = "HTTP/1.1", statusCode: Int, statusMessage: String, headers: [String: String] = [:], body: Data = Data()) {
+        self.version = version
         self.statusCode = statusCode
         self.statusMessage = statusMessage
         self.headers = headers

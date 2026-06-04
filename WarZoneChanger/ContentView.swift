@@ -19,21 +19,24 @@ struct ContentView: View {
                 VStack(spacing: 0) {
                     // 顶部渐变背景
                     LinearGradient(gradient: Gradient(colors: [Color.accentColor, Color.purple]), startPoint: .top, endPoint: .bottom)
-                        .frame(height: 200)
+                        .frame(height: min(UIScreen.main.bounds.height * 0.35, 220))
                         .overlay(
-                            VStack(spacing: 16) {
+                            VStack(spacing: 12) {
                                 Image(systemName: "location.fill")
-                                    .font(.system(size: 48))
+                                    .font(.system(size: min(UIScreen.main.bounds.width * 0.12, 48)))
                                     .foregroundColor(.white)
                                 
                                 Text("战区精灵")
-                                    .font(.system(size: 32, weight: .bold))
+                                    .font(.system(size: min(UIScreen.main.bounds.width * 0.08, 32), weight: .bold))
+                                    .minimumScaleFactor(0.7)
                                     .foregroundColor(.white)
                                 
                                 Text("轻松修改您的游戏战区")
-                                    .font(.system(size: 16))
+                                    .font(.system(size: min(UIScreen.main.bounds.width * 0.04, 16)))
+                                    .minimumScaleFactor(0.7)
                                     .foregroundColor(.white.opacity(0.8))
                             }
+                            .padding(.horizontal, 24)
                         )
                     
                     // 主内容区域
@@ -265,6 +268,10 @@ struct ContentView: View {
                         .background(Color(UIColor.systemBackground))
                         .cornerRadius(16)
                         .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 16)
+                                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+                        )
                         .padding(.horizontal, 16)
                         .padding(.bottom, 32)
                     }

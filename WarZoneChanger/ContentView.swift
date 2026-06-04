@@ -258,14 +258,9 @@ struct ContentView: View {
                             }
                             
                             VStack(spacing: 4) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "music.note")
-                                        .font(.system(size: 20))
-                                        .foregroundColor(.orange)
-                                    Text("喜爱民谣")
-                                        .font(.system(size: 16, weight: .medium))
-                                }
-                                Text("愿每一首歌都能打动你")
+                                Text("喜爱民谣")
+                                    .font(.system(size: 16, weight: .medium))
+                                Text("我欲见你 又何惧一两个春秋")
                                     .font(.system(size: 12))
                                     .foregroundColor(.gray)
                             }

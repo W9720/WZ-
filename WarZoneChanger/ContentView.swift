@@ -141,103 +141,177 @@ struct LocationPickerView: View {
     @Environment(\.dismiss) private var dismiss
     @Binding var selectedLocation: SelectedLocation?
     
-    @State private var searchText = ""
     @State private var selectedProvince: Region?
     @State private var selectedCity: Region?
+    @State private var selectedDistrict: Region?
     
     private let allRegions = RegionData.shared.allRegions
     
-    private var filteredProvinces: [Region] {
-        if searchText.isEmpty {
-            return allRegions
+    private var cities: [Region] {
+        selectedProvince?.list ?? []
+    }
+    
+    private var districts: [Region] {
+        selectedCity?.list ?? []
+    }
+    
+    private var selectedAdcode: String {
+        if let district = selectedDistrict {
+            return "\(district.adcode)"
+        } else if let city = selectedCity {
+            return "\(city.adcode)"
+        } else if let province = selectedProvince {
+            return "\(province.adcode)"
         }
-        return allRegions.filter { $0.shortName.contains(searchText) }
+        return ""
+    }
+    
+    private var selectedName: String {
+        if let district = selectedDistrict {
+            return district.shortName
+        } else if let city = selectedCity {
+            return city.shortName
+        } else if let province = selectedProvince {
+            return province.shortName
+        }
+        return ""
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 0) {
-                TextField("搜索省份...", text: $searchText)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+            VStack(spacing: 16) {
+                // 省份选择
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("省份")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 16)
+                    
+                    Picker("省份", selection: $selectedProvince) {
+                        Text("请选择省份").tag(nil as Region?)
+                        ForEach(allRegions, id: \.adcode) { province in
+                            Text(province.shortName).tag(province as Region?)
+                        }
+                    }
+                    .pickerStyle(.menu)
                     .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
+                    .frame(height: 48)
+                    .background(Color(UIColor.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(selectedProvince == nil ? Color.gray.opacity(0.3) : Color.accentColor, lineWidth: 1)
+                    )
+                }
                 
-                HStack(spacing: 0) {
-                    List(filteredProvinces, id: \.adcode) { province in
-                        Button(action: {
-                            selectedProvince = province
-                            selectedCity = nil
-                        }) {
-                            HStack {
-                                Text(province.shortName)
-                                    .foregroundColor(selectedProvince?.adcode == province.adcode ? .accentColor : .primary)
-                                Spacer()
-                                if selectedProvince?.adcode == province.adcode {
-                                    Image(systemName: "checkmark")
-                                        .foregroundColor(.accentColor)
-                                }
-                            }
+                // 城市选择
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("城市")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 16)
+                    
+                    Picker("城市", selection: $selectedCity) {
+                        Text("请选择城市").tag(nil as Region?)
+                        ForEach(cities, id: \.adcode) { city in
+                            Text(city.shortName).tag(city as Region?)
                         }
                     }
-                    .listStyle(PlainListStyle())
-                    .frame(maxWidth: .infinity)
+                    .pickerStyle(.menu)
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .background(Color(UIColor.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(selectedCity == nil ? Color.gray.opacity(0.3) : Color.accentColor, lineWidth: 1)
+                    )
+                    .disabled(selectedProvince == nil)
+                    .opacity(selectedProvince == nil ? 0.5 : 1.0)
+                }
+                
+                // 区县选择
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("区县")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray)
+                        .padding(.horizontal, 16)
                     
-                    if let province = selectedProvince, let cities = province.list {
-                        Divider()
-                        List(cities, id: \.adcode) { city in
-                            Button(action: {
-                                selectedCity = city
-                            }) {
-                                HStack {
-                                    Text(city.shortName)
-                                        .foregroundColor(selectedCity?.adcode == city.adcode ? .accentColor : .primary)
-                                    Spacer()
-                                    if selectedCity?.adcode == city.adcode {
-                                        Image(systemName: "checkmark")
-                                            .foregroundColor(.accentColor)
-                                    }
-                                }
-                            }
+                    Picker("区县", selection: $selectedDistrict) {
+                        Text("请选择区县").tag(nil as Region?)
+                        ForEach(districts, id: \.adcode) { district in
+                            Text(district.shortName).tag(district as Region?)
                         }
-                        .listStyle(PlainListStyle())
-                        .frame(maxWidth: .infinity)
+                    }
+                    .pickerStyle(.menu)
+                    .padding(.horizontal, 16)
+                    .frame(height: 48)
+                    .background(Color(UIColor.systemBackground))
+                    .cornerRadius(8)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(selectedDistrict == nil ? Color.gray.opacity(0.3) : Color.accentColor, lineWidth: 1)
+                    )
+                    .disabled(selectedCity == nil)
+                    .opacity(selectedCity == nil ? 0.5 : 1.0)
+                }
+                
+                // 位置信息显示
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Image(systemName: "location.circle")
+                            .foregroundColor(.orange)
+                        Text("位置信息")
+                            .font(.system(size: 14))
                     }
                     
-                    if let city = selectedCity, let districts = city.list, !districts.isEmpty {
-                        Divider()
-                        List(districts, id: \.adcode) { district in
-                            Button(action: {
-                                selectLocation(
-                                    adcode: "\(district.adcode)",
-                                    name: district.shortName,
-                                    province: selectedProvince!.shortName,
-                                    city: city.shortName
-                                )
-                            }) {
-                                Text(district.shortName)
-                            }
-                        }
-                        .listStyle(PlainListStyle())
-                        .frame(maxWidth: .infinity)
-                    } else if let city = selectedCity {
-                        Divider()
-                        List {
-                            Button(action: {
-                                selectLocation(
-                                    adcode: "\(city.adcode)",
-                                    name: city.shortName,
-                                    province: selectedProvince!.shortName,
-                                    city: city.shortName
-                                )
-                            }) {
-                                Text("点击直接选择市级战区")
-                                    .foregroundColor(.accentColor)
-                            }
-                        }
-                        .listStyle(PlainListStyle())
-                        .frame(maxWidth: .infinity)
+                    if selectedProvince != nil {
+                        Text("省份: \(selectedProvince!.shortName)")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    if selectedCity != nil {
+                        Text("城市: \(selectedCity!.shortName)")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    if selectedDistrict != nil {
+                        Text("区县: \(selectedDistrict!.shortName)")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    if !selectedAdcode.isEmpty {
+                        Text("城市编码: \(selectedAdcode)")
+                            .font(.system(size: 14))
+                            .foregroundColor(.accentColor)
                     }
                 }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color(UIColor.systemGray6))
+                .cornerRadius(8)
+                .padding(.horizontal, 16)
+                
+                Spacer()
+                
+                // 确认按钮
+                Button(action: {
+                    if selectedProvince != nil {
+                        selectLocation()
+                    }
+                }) {
+                    Text("确认选择")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 56)
+                        .background(Color.accentColor)
+                        .cornerRadius(12)
+                }
+                .padding(.horizontal, 24)
+                .padding(.bottom, 32)
+                .disabled(selectedProvince == nil)
+                .opacity(selectedProvince == nil ? 0.5 : 1.0)
             }
             .navigationTitle("选择战区")
             .navigationBarTitleDisplayMode(.inline)
@@ -249,14 +323,48 @@ struct LocationPickerView: View {
                 }
             }
         }
+        .onAppear {
+            // 初始化已选择的位置
+            if let loc = selectedLocation {
+                // 尝试找到对应的省份、城市、区县
+                let adcodeInt = Int(loc.adcode) ?? 0
+                let provinceCode = adcodeInt / 10000 * 10000
+                let cityCode = adcodeInt / 100 * 100
+                
+                selectedProvince = allRegions.first { $0.adcode == provinceCode }
+                
+                if let province = selectedProvince {
+                    if cityCode != provinceCode {
+                        selectedCity = province.list?.first { $0.adcode == cityCode }
+                        
+                        if let city = selectedCity, adcodeInt != cityCode {
+                            selectedDistrict = city.list?.first { $0.adcode == adcodeInt }
+                        }
+                    }
+                }
+            }
+        }
     }
     
-    private func selectLocation(adcode: String, name: String, province: String, city: String) {
+    private func selectLocation() {
+        let provinceName = selectedProvince!.shortName
+        let cityName = selectedCity?.shortName ?? ""
+        let districtName = selectedDistrict?.shortName ?? ""
+        
+        let displayName: String
+        if let district = selectedDistrict {
+            displayName = district.shortName
+        } else if let city = selectedCity {
+            displayName = city.shortName
+        } else {
+            displayName = provinceName
+        }
+        
         selectedLocation = SelectedLocation(
-            adcode: adcode,
-            name: name,
-            province: province,
-            city: city
+            adcode: selectedAdcode,
+            name: displayName,
+            province: provinceName,
+            city: cityName.isEmpty ? provinceName : cityName
         )
         dismiss()
     }

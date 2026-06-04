@@ -18,6 +18,17 @@ jobs:
 
       - name: Build for iOS Simulator
         run: |
+          set -x
+          xcodebuild clean build \
+            -project WarZoneChanger.xcodeproj \
+            -target WarZoneChanger \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | head -100
+        continue-on-error: true
+
+      - name: Build output
+        run: |
           xcodebuild clean build \
             -project WarZoneChanger.xcodeproj \
             -target WarZoneChanger \

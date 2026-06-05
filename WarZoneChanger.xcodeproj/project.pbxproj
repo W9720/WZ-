@@ -19,9 +19,8 @@
 		A100000000000000000000010 /* PacketTunnelProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000011 /* PacketTunnelProvider.swift */; };
 		A100000000000000000000012 /* LocationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000013 /* LocationStore.swift */; };
 		A100000000000000000000014 /* LocationInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000015 /* LocationInjector.swift */; };
-		A100000000000000000000016 /* PacketHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000017 /* PacketHandler.swift */; };
-		A100000000000000000000018 /* TCPConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000019 /* TCPConnection.swift */; };
 		A100000000000000000000020 /* HTTPParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000021 /* HTTPParser.swift */; };
+		A100000000000000000000032 /* ConnectionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000033 /* ConnectionManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -35,9 +34,8 @@
 		A100000000000000000000011 /* PacketTunnelProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketTunnelProvider.swift; sourceTree = "<group>"; };
 		A100000000000000000000013 /* LocationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationStore.swift; sourceTree = "<group>"; };
 		A100000000000000000000015 /* LocationInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationInjector.swift; sourceTree = "<group>"; };
-		A100000000000000000000017 /* PacketHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PacketHandler.swift; sourceTree = "<group>"; };
-		A100000000000000000000019 /* TCPConnection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TCPConnection.swift; sourceTree = "<group>"; };
 		A100000000000000000000021 /* HTTPParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPParser.swift; sourceTree = "<group>"; };
+		A100000000000000000000033 /* ConnectionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectionManager.swift; sourceTree = "<group>"; };
 		A100000000000000000000023 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A100000000000000000000025 /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
 		A100000000000000000000027 /* CardCodeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardCodeManager.swift; sourceTree = "<group>"; };
@@ -96,9 +94,8 @@
 				A100000000000000000000011 /* PacketTunnelProvider.swift */,
 				A100000000000000000000013 /* LocationStore.swift */,
 				A100000000000000000000015 /* LocationInjector.swift */,
-				A100000000000000000000017 /* PacketHandler.swift */,
-				A100000000000000000000019 /* TCPConnection.swift */,
 				A100000000000000000000021 /* HTTPParser.swift */,
+				A100000000000000000000033 /* ConnectionManager.swift */,
 				A100000000000000000000023 /* Info.plist */,
 			);
 			path = PacketTunnel;
@@ -221,9 +218,8 @@
 				A100000000000000000000010 /* PacketTunnelProvider.swift in Sources */,
 				A100000000000000000000012 /* LocationStore.swift in Sources */,
 				A100000000000000000000014 /* LocationInjector.swift in Sources */,
-				A100000000000000000000016 /* PacketHandler.swift in Sources */,
-				A100000000000000000000018 /* TCPConnection.swift in Sources */,
 				A100000000000000000000020 /* HTTPParser.swift in Sources */,
+				A100000000000000000000032 /* ConnectionManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

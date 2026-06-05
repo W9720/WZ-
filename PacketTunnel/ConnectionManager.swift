@@ -101,11 +101,13 @@ class ConnectionManager {
         }
         
         if !payload.isEmpty {
-            processPayload(payload, connectionKey: connectionKey, info: connectionInfo[connectionKey]!)
+            processPayload(payload, connectionKey: connectionKey)
         }
     }
     
-    private func processPayload(_ payload: Data, connectionKey: String, info: ConnectionInfo) {
+    private func processPayload(_ payload: Data, connectionKey: String) {
+        guard var info = connectionInfo[connectionKey] else { return }
+        
         info.requestBuffer.append(payload)
         
         if !info.isTargetRequest {
@@ -116,26 +118,32 @@ class ConnectionManager {
                 )
                 
                 if info.isTargetRequest {
-                    NSLog("[ConnectionManager] 检测到目标请求: \(request.host ?? "")\(request.path ?? "")
+                    NSLog("[ConnectionManager] 检测到目标请求: \(request.host ?? "")\(request.path ?? "")")
                 }
             }
         }
         
+        connectionInfo[connectionKey] = info
+        
         var connection = connections[connectionKey]
         
         if connection == nil {
-            connection = createConnection(connectionKey: connectionKey, info: info)
+            connection = createConnection(connectionKey: connectionKey)
             connections[connectionKey] = connection
         }
         
-        connection?.send(content: payload, completion: .contentProcessed { [weak self] error in
+        connection?.send(content: payload, completion: .contentProcessed { error in
             if let error = error {
-                NSLog("[ConnectionManager] Send error: \(error)
+                NSLog("[ConnectionManager] Send error: \(error)")
             }
         })
     }
     
-    private func createConnection(connectionKey: String, info: ConnectionInfo) -> NWConnection {
+    private func createConnection(connectionKey: String) -> NWConnection {
+        guard let info = connectionInfo[connectionKey] else {
+            fatalError("Connection info not found")
+        }
+        
         let host = NWEndpoint.Host(info.destIP)
         let port = NWEndpoint.Port(rawValue: info.destPort)!
         let endpoint = NWEndpoint.hostPort(host: host, port: port)
@@ -146,9 +154,9 @@ class ConnectionManager {
             guard let self = self else { return }
             switch state {
             case .ready:
-                self.receive(from: connection, connectionKey: connectionKey, info: info)
+                self.receive(from: connection, connectionKey: connectionKey)
             case .failed(let error):
-                NSLog("[ConnectionManager] 连接失败: \(error)
+                NSLog("[ConnectionManager] 连接失败: \(error)")
                 self.connections.removeValue(forKey: connectionKey)
             case .cancelled:
                 self.connections.removeValue(forKey: connectionKey)
@@ -162,66 +170,71 @@ class ConnectionManager {
         return connection
     }
     
-    private func receive(from connection: NWConnection, connectionKey: String, info: ConnectionInfo) {
+    private func receive(from connection: NWConnection, connectionKey: String) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
             
             if let error = error {
-                NSLog("[ConnectionManager] Receive error: \(error)
+                NSLog("[ConnectionManager] Receive error: \(error)")
                 return
             }
             
             if let data = data, !data.isEmpty {
                 var responseData = data
                 
-                if info.isTargetRequest {
-                    info.responseBuffer.append(data)
-                    
-                    if let response = HTTPParser.shared.parseResponse(info.responseBuffer) {
-                        let contentLength = response.headers["Content-Length"] ?? "0"
-                        let bodyLength = response.body.count
+                if let info = self.connectionInfo[connectionKey], info.isTargetRequest {
+                    if var info = self.connectionInfo[connectionKey] {
+                        info.responseBuffer.append(data)
+                        self.connectionInfo[connectionKey] = info
                         
-                        if bodyLength >= Int(contentLength) ?? 0 {
-                            if let location = LocationStore.shared.getSelectedLocation() {
-                                NSLog("[ConnectionManager] 注入伪造响应: \(location.adcode)
-                                
-                                let fakeBody = LocationInjector.shared.buildFakeResponse(
-                                    adcode: location.adcode,
-                                    regionName: location.name
-                                )
-                                
-                                let fakeResponse = HTTPResponse(
-                                    statusCode: 200,
-                                    statusMessage: "OK",
-                                    headers: [
-                                        "Content-Type": "application/json; charset=utf-8",
-                                        "Server": "tencent-nginx",
-                                        "Connection": "close",
-                                        "Content-Length": "\(fakeBody.data(using: .utf8)?.count ?? 0)"
-                                    ],
-                                    body: fakeBody.data(using: .utf8) ?? Data()
-                                )
-                                
-                                responseData = fakeResponse.toData()
+                        if let response = HTTPParser.shared.parseResponse(info.responseBuffer) {
+                            let contentLength = response.headers["Content-Length"] ?? "0"
+                            let bodyLength = response.body.count
+                            
+                            if bodyLength >= Int(contentLength) ?? 0 {
+                                if let location = LocationStore.shared.getSelectedLocation() {
+                                    NSLog("[ConnectionManager] 注入伪造响应: \(location.adcode)")
+                                    
+                                    let fakeBody = LocationInjector.shared.buildFakeResponse(
+                                        adcode: location.adcode,
+                                        regionName: location.name
+                                    )
+                                    
+                                    let fakeResponse = HTTPResponse(
+                                        statusCode: 200,
+                                        statusMessage: "OK",
+                                        headers: [
+                                            "Content-Type": "application/json; charset=utf-8",
+                                            "Server": "tencent-nginx",
+                                            "Connection": "close",
+                                            "Content-Length": "\(fakeBody.data(using: .utf8)?.count ?? 0)"
+                                        ],
+                                        body: fakeBody.data(using: .utf8) ?? Data()
+                                    )
+                                    
+                                    responseData = fakeResponse.toData()
+                                }
                             }
                         }
                     }
                 }
                 
-                let responsePacket = self.buildResponsePacket(
-                    sourceIP: info.destIP,
-                    sourcePort: info.destPort,
-                    destIP: info.sourceIP,
-                    destPort: info.sourcePort,
-                    payload: responseData
-                )
-                self.packetFlow.writePackets([responsePacket], withProtocols: [AF_INET as NSNumber])
+                if let info = self.connectionInfo[connectionKey] {
+                    let responsePacket = self.buildResponsePacket(
+                        sourceIP: info.destIP,
+                        sourcePort: info.destPort,
+                        destIP: info.sourceIP,
+                        destPort: info.sourcePort,
+                        payload: responseData
+                    )
+                    self.packetFlow.writePackets([responsePacket], withProtocols: [AF_INET as NSNumber])
+                }
             }
             
             if isComplete {
                 connection.cancel()
             } else {
-                self.receive(from: connection, connectionKey: connectionKey, info: info)
+                self.receive(from: connection, connectionKey: connectionKey)
             }
         }
     }
@@ -249,7 +262,7 @@ class ConnectionManager {
         ipHeader.append(0x40)
         ipHeader.append(0x06)
         
-        var ipChecksum: UInt16 = 0
+        let ipChecksum: UInt16 = 0
         ipHeader.append(contentsOf: withUnsafeBytes(of: ipChecksum.bigEndian) { Data($0) })
         ipHeader.append(contentsOf: srcIPBytes)
         ipHeader.append(contentsOf: dstIPBytes)
@@ -275,7 +288,7 @@ class ConnectionManager {
         tcpHeader.append(0xFF)
         tcpHeader.append(0xFF)
         
-        var tcpChecksum: UInt16 = 0
+        let tcpChecksum: UInt16 = 0
         tcpHeader.append(contentsOf: withUnsafeBytes(of: tcpChecksum.bigEndian) { Data($0) })
         tcpHeader.append(0x00)
         tcpHeader.append(0x00)

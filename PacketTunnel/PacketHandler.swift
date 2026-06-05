@@ -31,8 +31,10 @@ struct TCPHeader {
 class PacketHandler {
     static let shared = PacketHandler()
     
-    private var connections: [String: TCPConnection] = [:]
     private let queue = DispatchQueue(label: "com.warzone.packet-handler")
+    private var connections: [String: StaticTCPConnection] = [:]
+    private let targetHost = "apis.map.qq.com"
+    private let targetPort: UInt16 = 80
     
     private init() {}
     
@@ -50,30 +52,44 @@ class PacketHandler {
         }
         
         let connectionKey = "\(ipHeader.sourceAddress):\(tcpHeader.sourcePort)-\(ipHeader.destinationAddress):\(tcpHeader.destinationPort)"
-        let reverseKey = "\(ipHeader.destinationAddress):\(tcpHeader.destinationPort)-\(ipHeader.sourceAddress):\(tcpHeader.sourcePort)"
         
         let payloadOffset = ipHeader.headerLength + tcpHeader.headerLength
         let payload = data.subdata(in: payloadOffset..<data.count)
         
-        if tcpHeader.isSYN {
-            handleSYN(connectionKey: connectionKey, 
-                     destinationAddress: ipHeader.destinationAddress, 
-                     destinationPort: tcpHeader.destinationPort)
+        let isTargetPort = tcpHeader.destinationPort == targetPort || tcpHeader.sourcePort == targetPort
+        
+        if !isTargetPort {
+            return data
         }
         
-        if tcpHeader.isFIN || tcpHeader.isRST {
-            handleFIN(connectionKey: connectionKey, reverseKey: reverseKey)
-        }
-        
-        if !payload.isEmpty {
-            handlePayload(connectionKey: connectionKey, 
-                         reverseKey: reverseKey, 
-                         payload: payload,
-                         destinationAddress: ipHeader.destinationAddress,
-                         destinationPort: tcpHeader.destinationPort)
+        queue.async { [weak self] in
+            guard let self = self else { return }
+            self.handleTargetPacket(
+                connectionKey: connectionKey,
+                ipHeader: ipHeader,
+                tcpHeader: tcpHeader,
+                payload: payload
+            )
         }
         
         return data
+    }
+    
+    private func handleTargetPacket(connectionKey: String, ipHeader: IPHeader, tcpHeader: TCPHeader, payload: Data) {
+        var connection = connections[connectionKey]
+        
+        if connection == nil {
+            connection = StaticTCPConnection(
+                packetFlow: PacketTunnelProvider.shared?.packetFlow,
+                sourceIP: ipHeader.sourceAddress,
+                sourcePort: tcpHeader.sourcePort,
+                destIP: ipHeader.destinationAddress,
+                destPort: tcpHeader.destinationPort
+            )
+            connections[connectionKey] = connection
+        }
+        
+        connection?.handlePacket(tcpHeader: tcpHeader, payload: payload)
     }
     
     private func parseIPHeader(_ data: Data) -> IPHeader? {
@@ -136,85 +152,275 @@ class PacketHandler {
             headerLength: headerLength
         )
     }
+}
+
+class StaticTCPConnection {
+    private let packetFlow: NEPacketTunnelFlow?
+    private let sourceIP: String
+    private let sourcePort: UInt16
+    private let destIP: String
+    private let destPort: UInt16
     
-    private func handleSYN(connectionKey: String, destinationAddress: String, destinationPort: UInt16) {
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            
-            if self.connections[connectionKey] == nil {
-                let connection = TCPConnection(host: destinationAddress, port: destinationPort)
-                
-                connection.setResponseInjector { [weak self] request in
-                    return self?.createFakeResponse(for: request)
+    private var clientSeq: UInt32 = 0
+    private var serverSeq: UInt32 = 0
+    private var state: TCPState = .listen
+    private var requestBuffer = Data()
+    
+    init(packetFlow: NEPacketTunnelFlow?, sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16) {
+        self.packetFlow = packetFlow
+        self.sourceIP = sourceIP
+        self.sourcePort = sourcePort
+        self.destIP = destIP
+        self.destPort = destPort
+        self.serverSeq = UInt32.random(in: 0..<UInt32.max)
+    }
+    
+    func handlePacket(tcpHeader: TCPHeader, payload: Data) {
+        switch state {
+        case .listen:
+            if tcpHeader.isSYN {
+                handleSYN(clientSeq: tcpHeader.sequenceNumber)
+            }
+        case .synReceived:
+            if tcpHeader.isACK {
+                state = .established
+            }
+        case .established:
+            if tcpHeader.isFIN {
+                handleFIN()
+            } else if !payload.isEmpty {
+                requestBuffer.append(payload)
+                if let request = HTTPParser.shared.parseRequest(requestBuffer) {
+                    handleHTTPRequest(request)
                 }
+            }
+        case .closeWait:
+            if tcpHeader.isACK {
+                state = .closed
+            }
+        default:
+            break
+        }
+    }
+    
+    private func handleSYN(clientSeq: UInt32) {
+        self.clientSeq = clientSeq + 1
+        state = .synReceived
+        sendSYNACK()
+    }
+    
+    private func handleFIN() {
+        state = .closeWait
+        sendFINACK()
+    }
+    
+    private func handleHTTPRequest(_ request: HTTPRequest) {
+        NSLog("[StaticTCP] 收到请求: \(request.host ?? "")\(request.path)")
+        
+        let isTarget = LocationInjector.shared.isTargetRequest(host: request.host, path: request.path)
+        
+        if isTarget {
+            NSLog("[StaticTCP] 识别到目标请求，返回伪造响应")
+            
+            if let location = LocationStore.shared.getSelectedLocation() {
+                let fakeBody = LocationInjector.shared.buildFakeResponse(
+                    adcode: location.adcode,
+                    regionName: location.name
+                )
                 
-                self.connections[connectionKey] = connection
-                connection.start()
+                let response = HTTPResponse(
+                    statusCode: 200,
+                    statusMessage: "OK",
+                    headers: [
+                        "Content-Type": "application/json; charset=utf-8",
+                        "Server": "tencent-nginx",
+                        "Date": DateFormatter.rfc1123.string(from: Date()),
+                        "Connection": "close",
+                        "Content-Length": "\(fakeBody.data(using: .utf8)?.count ?? 0)"
+                    ],
+                    body: fakeBody.data(using: .utf8) ?? Data()
+                )
+                
+                sendHTTPResponse(response)
             }
         }
-    }
-    
-    private func handleFIN(connectionKey: String, reverseKey: String) {
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            
-            self.connections[connectionKey]?.cancel()
-            self.connections.removeValue(forKey: connectionKey)
-            self.connections.removeValue(forKey: reverseKey)
-        }
-    }
-    
-    private func handlePayload(connectionKey: String, reverseKey: String, payload: Data, destinationAddress: String, destinationPort: UInt16) {
-        queue.async { [weak self] in
-            guard let self = self else { return }
-            
-            var connection = self.connections[connectionKey]
-            
-            if connection == nil {
-                connection = TCPConnection(host: destinationAddress, port: destinationPort)
-                connection?.setResponseInjector { [weak self] request in
-                    return self?.createFakeResponse(for: request)
-                }
-                self.connections[connectionKey] = connection
-                connection?.start()
-            }
-            
-            connection?.send(data: payload)
-        }
-    }
-    
-    private func createFakeResponse(for request: HTTPRequest) -> HTTPResponse? {
-        guard LocationInjector.shared.isTargetRequest(host: request.host, path: request.path) else {
-            return nil
-        }
         
-        guard let location = LocationStore.shared.getSelectedLocation() else {
-            return nil
-        }
-        
-        let fakeBody = LocationInjector.shared.buildFakeResponse(
-            adcode: location.adcode,
-            regionName: location.name
+        sendFIN()
+    }
+    
+    private func sendSYNACK() {
+        let synAckFlags: UInt8 = 0x12
+        var response = buildTCPResponse(
+            seq: serverSeq,
+            ack: clientSeq,
+            flags: synAckFlags,
+            window: 65535,
+            payload: Data()
         )
         
-        guard let bodyData = fakeBody.data(using: .utf8) else {
-            return nil
+        if let flow = packetFlow {
+            flow.writePackets([response], withProtocols: [AF_INET as NSNumber])
+        }
+        serverSeq += 1
+    }
+    
+    private func sendFINACK() {
+        let finAckFlags: UInt8 = 0x11
+        let response = buildTCPResponse(
+            seq: serverSeq,
+            ack: clientSeq + 1,
+            flags: finAckFlags,
+            window: 65535,
+            payload: Data()
+        )
+        
+        if let flow = packetFlow {
+            flow.writePackets([response], withProtocols: [AF_INET as NSNumber])
+        }
+    }
+    
+    private func sendFIN() {
+        let finFlags: UInt8 = 0x01
+        let response = buildTCPResponse(
+            seq: serverSeq,
+            ack: clientSeq,
+            flags: finFlags,
+            window: 65535,
+            payload: Data()
+        )
+        
+        if let flow = packetFlow {
+            flow.writePackets([response], withProtocols: [AF_INET as NSNumber])
+        }
+        state = .closeWait
+    }
+    
+    private func sendHTTPResponse(_ response: HTTPResponse) {
+        let responseData = response.toData()
+        
+        let pshAckFlags: UInt8 = 0x18
+        let packet = buildTCPResponse(
+            seq: serverSeq,
+            ack: clientSeq,
+            flags: pshAckFlags,
+            window: 65535,
+            payload: responseData
+        )
+        
+        if let flow = packetFlow {
+            flow.writePackets([packet], withProtocols: [AF_INET as NSNumber])
         }
         
-        let headers = [
-            "Content-Type": "application/json; charset=utf-8",
-            "Server": "tencent-nginx",
-            "Date": DateFormatter.rfc1123.string(from: Date()),
-            "Connection": "close"
-        ]
-        
-        return HTTPResponse(
-            statusCode: 200,
-            statusMessage: "OK",
-            headers: headers,
-            body: bodyData
-        )
+        serverSeq += UInt32(responseData.count)
     }
+    
+    private func buildTCPResponse(seq: UInt32, ack: UInt32, flags: UInt8, window: UInt16, payload: Data) -> Data {
+        var packet = Data()
+        
+        let srcIPBytes = parseIP(sourceIP)
+        let dstIPBytes = parseIP(destIP)
+        
+        var ipHeader = Data()
+        ipHeader.append(0x45)
+        ipHeader.append(0x00)
+        let totalLength = UInt16(20 + 20 + payload.count)
+        ipHeader.append(UInt8(totalLength >> 8))
+        ipHeader.append(UInt8(totalLength & 0xFF))
+        ipHeader.append(0x00)
+        ipHeader.append(0x00)
+        ipHeader.append(0x40)
+        ipHeader.append(0x00)
+        ipHeader.append(0x40)
+        ipHeader.append(0x06)
+        
+        var ipChecksum: UInt16 = 0
+        let ipChecksumBytes = withUnsafeBytes(of: ipChecksum.bigEndian) { Data($0) }
+        ipHeader.append(ipChecksumBytes)
+        
+        ipHeader.append(contentsOf: dstIPBytes)
+        ipHeader.append(contentsOf: srcIPBytes)
+        
+        let calculatedIPChecksum = calculateChecksum(ipHeader)
+        ipHeader.replaceSubrange(10..<12, with: withUnsafeBytes(of: calculatedIPChecksum.bigEndian) { Data($0) })
+        
+        var tcpHeader = Data()
+        tcpHeader.append(UInt8(destPort >> 8))
+        tcpHeader.append(UInt8(destPort & 0xFF))
+        tcpHeader.append(UInt8(sourcePort >> 8))
+        tcpHeader.append(UInt8(sourcePort & 0xFF))
+        tcpHeader.append(UInt8(seq >> 24))
+        tcpHeader.append(UInt8((seq >> 16) & 0xFF))
+        tcpHeader.append(UInt8((seq >> 8) & 0xFF))
+        tcpHeader.append(UInt8(seq & 0xFF))
+        tcpHeader.append(UInt8(ack >> 24))
+        tcpHeader.append(UInt8((ack >> 16) & 0xFF))
+        tcpHeader.append(UInt8((ack >> 8) & 0xFF))
+        tcpHeader.append(UInt8(ack & 0xFF))
+        tcpHeader.append(0x50)
+        tcpHeader.append(flags)
+        tcpHeader.append(UInt8(window >> 8))
+        tcpHeader.append(UInt8(window & 0xFF))
+        
+        var tcpChecksum: UInt16 = 0
+        tcpHeader.append(contentsOf: withUnsafeBytes(of: tcpChecksum.bigEndian) { Data($0) })
+        tcpHeader.append(0x00)
+        tcpHeader.append(0x00)
+        
+        var pseudoHeader = Data()
+        pseudoHeader.append(contentsOf: dstIPBytes)
+        pseudoHeader.append(contentsOf: srcIPBytes)
+        pseudoHeader.append(0x00)
+        pseudoHeader.append(0x06)
+        let tcpLength = UInt16(tcpHeader.count + payload.count)
+        pseudoHeader.append(UInt8(tcpLength >> 8))
+        pseudoHeader.append(UInt8(tcpLength & 0xFF))
+        
+        var tcpChecksumData = pseudoHeader
+        tcpChecksumData.append(tcpHeader)
+        tcpChecksumData.append(payload)
+        
+        let calculatedTCPChecksum = calculateChecksum(tcpChecksumData)
+        tcpHeader.replaceSubrange(16..<18, with: withUnsafeBytes(of: calculatedTCPChecksum.bigEndian) { Data($0) })
+        
+        packet.append(ipHeader)
+        packet.append(tcpHeader)
+        packet.append(payload)
+        
+        return packet
+    }
+    
+    private func parseIP(_ address: String) -> [UInt8] {
+        let parts = address.split(separator: ".").compactMap { UInt8($0) }
+        return parts.count == 4 ? parts : [0, 0, 0, 0]
+    }
+    
+    private func calculateChecksum(_ data: Data) -> UInt16 {
+        var sum: UInt32 = 0
+        let words = data.count / 2
+        
+        for i in 0..<words {
+            let word = UInt32(data[i * 2]) << 8 | UInt32(data[i * 2 + 1])
+            sum += word
+        }
+        
+        if data.count % 2 == 1 {
+            sum += UInt32(data[data.count - 1]) << 8
+        }
+        
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
+        
+        return UInt16(~sum & 0xFFFF)
+    }
+}
+
+enum TCPState {
+    case listen
+    case synReceived
+    case established
+    case closeWait
+    case closed
 }
 
 extension DateFormatter {

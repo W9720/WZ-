@@ -3,8 +3,15 @@ import Foundation
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
+    static var shared: PacketTunnelProvider?
+    
     private let queue = DispatchQueue(label: "com.warzone.packettunnel")
     private var isRunning = false
+    
+    override init() {
+        super.init()
+        PacketTunnelProvider.shared = self
+    }
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         NSLog("[WarZoneChanger] Starting tunnel...")

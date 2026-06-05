@@ -10,7 +10,7 @@ class VPNManager: ObservableObject {
     
     private var vpnManager: NEVPNManager?
     private let appGroupIdentifier = "group.com.warzone.changer"
-    private let tunnelBundleIdentifier = "com.warzonechanger.PacketTunnel"
+    private let tunnelBundleIdentifier = "com.warzone.changer.PacketTunnel"
     
     private init() {
         loadVPNConfiguration()

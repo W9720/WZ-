@@ -272,8 +272,8 @@ class UDPSession {
         addr.sin_port = UInt16(0).bigEndian
         addr.sin_addr.s_addr = inet_addr("0.0.0.0")
         
-        withUnsafePointer(to: &addr) { ptr in
-            bind(socket, UnsafePointer(ptr), socklen_t(MemoryLayout<sockaddr_in>.stride))
+        withUnsafeBytes(of: &addr) { ptr in
+            bind(socket, ptr.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(MemoryLayout<sockaddr_in>.stride))
         }
         
         DispatchQueue.global().async { [weak self] in
@@ -292,8 +292,8 @@ class UDPSession {
         addr.sin_addr.s_addr = inet_addr(dstIP)
         
         data.withUnsafeBytes { ptr in
-            withUnsafePointer(to: &addr) { addrPtr in
-                sendto(socket, ptr.baseAddress, data.count, 0, UnsafePointer(addrPtr), socklen_t(MemoryLayout<sockaddr_in>.stride))
+            withUnsafeBytes(of: &addr) { addrPtr in
+                sendto(socket, ptr.baseAddress, data.count, 0, addrPtr.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(MemoryLayout<sockaddr_in>.stride))
             }
         }
     }
@@ -304,8 +304,8 @@ class UDPSession {
         var addrLen = socklen_t(MemoryLayout<sockaddr_in>.stride)
         
         while socket != -1 {
-            let bytesRead = withUnsafeMutablePointer(to: &addr) { addrPtr in
-                recvfrom(socket, &buffer, buffer.count, 0, UnsafeMutablePointer(addrPtr), &addrLen)
+            let bytesRead = withUnsafeMutableBytes(of: &addr) { addrPtr in
+                recvfrom(socket, &buffer, buffer.count, 0, addrPtr.baseAddress!.assumingMemoryBound(to: sockaddr.self), &addrLen)
             }
             
             if bytesRead > 0 {
@@ -452,8 +452,8 @@ class TCPConnection {
         DispatchQueue.global().async { [weak self] in
             guard let self = self else { return }
             
-            let result = withUnsafePointer(to: &addr) { addrPtr in
-                connect(self.socket, UnsafePointer(addrPtr), socklen_t(MemoryLayout<sockaddr_in>.stride))
+            let result = withUnsafeBytes(of: &addr) { addrPtr in
+                connect(self.socket, addrPtr.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(MemoryLayout<sockaddr_in>.stride))
             }
             
             if result == 0 {

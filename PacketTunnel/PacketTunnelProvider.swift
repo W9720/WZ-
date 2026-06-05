@@ -1,5 +1,6 @@
 import NetworkExtension
 import Foundation
+import Network
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
@@ -261,7 +262,8 @@ class UDPSession {
     private let dstIP: String
     private let dstPort: UInt16
     private let packetFlow: NEPacketTunnelFlow
-    private var socket: Int32 = -1
+    private var connection: NWConnection?
+    private let queue = DispatchQueue(label: "com.warzone.udp.session")
     
     init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
         self.srcIP = srcIP
@@ -272,55 +274,59 @@ class UDPSession {
     }
     
     func start() {
-        socket = Darwin.socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        let host = NWEndpoint.Host(dstIP)
+        let port = NWEndpoint.Port(rawValue: dstPort)!
         
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.stride)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = UInt16(0).bigEndian
-        addr.sin_addr.s_addr = inet_addr("0.0.0.0")
+        connection = NWConnection(host: host, port: port, using: .udp)
         
-        withUnsafeBytes(of: &addr) { ptr in
-            bind(socket, ptr.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(MemoryLayout<sockaddr_in>.stride))
-        }
-        
-        DispatchQueue.global().async { [weak self] in
+        connection?.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
-            self.receiveLoop()
+            
+            switch state {
+            case .ready:
+                NSLog("[UDPSession] 连接就绪: \(self.dstIP):\(self.dstPort)")
+                self.receiveData()
+            case .failed(let error):
+                NSLog("[UDPSession] 连接失败: \(error)")
+                self.close()
+            case .cancelled:
+                NSLog("[UDPSession] 连接已取消")
+            default:
+                break
+            }
         }
+        
+        connection?.start(queue: queue)
     }
     
     func send(_ data: Data) {
-        guard socket != -1 else { return }
+        guard let connection = connection else { return }
         
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.stride)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = dstPort.bigEndian
-        addr.sin_addr.s_addr = inet_addr(dstIP)
-        
-        data.withUnsafeBytes { ptr in
-            withUnsafeBytes(of: &addr) { addrPtr in
-                sendto(socket, ptr.baseAddress, data.count, 0, addrPtr.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(MemoryLayout<sockaddr_in>.stride))
+        connection.send(content: data, completion: .contentProcessed { [weak self] error in
+            if let error = error {
+                NSLog("[UDPSession] 发送失败: \(error)")
             }
-        }
+        })
     }
     
-    private func receiveLoop() {
-        var buffer = [UInt8](repeating: 0, count: 4096)
-        var addr = sockaddr_in()
-        var addrLen = socklen_t(MemoryLayout<sockaddr_in>.stride)
+    private func receiveData() {
+        guard let connection = connection else { return }
         
-        while socket != -1 {
-            let bytesRead = withUnsafeMutableBytes(of: &addr) { addrPtr in
-                recvfrom(socket, &buffer, buffer.count, 0, addrPtr.baseAddress!.assumingMemoryBound(to: sockaddr.self), &addrLen)
+        connection.receiveMessage { [weak self] data, context, isComplete, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                NSLog("[UDPSession] 接收失败: \(error)")
+                self.close()
+                return
             }
             
-            if bytesRead > 0 {
-                let response = Data(bytes: buffer, count: bytesRead)
-                sendResponse(response)
-            } else {
-                break
+            if let data = data, !data.isEmpty {
+                self.sendResponse(data)
+            }
+            
+            if !isComplete {
+                self.receiveData()
             }
         }
     }
@@ -398,10 +404,8 @@ class UDPSession {
     }
     
     func close() {
-        if socket != -1 {
-            Darwin.close(socket)
-            socket = -1
-        }
+        connection?.cancel()
+        connection = nil
     }
 }
 
@@ -415,24 +419,22 @@ class TCPConnection {
     private var clientSeq: UInt32 = 0
     private var clientAck: UInt32 = 0
     private var serverSeq: UInt32 = 0
-    private var serverAck: UInt32 = 0
     
-    private var socket: Int32 = -1
     private var clientBuffer = Data()
     private var isTarget = false
     private var state: TCPState = .closed
-    private var isServerConnected = false
+    private var connection: NWConnection?
+    private let queue = DispatchQueue(label: "com.warzone.tcp.connection")
     
     enum TCPState {
         case closed
         case listen
         case synReceived
         case established
+        case closeWait
+        case lastAck
         case finWait1
         case finWait2
-        case closeWait
-        case closing
-        case lastAck
         case timeWait
     }
     
@@ -457,13 +459,11 @@ class TCPConnection {
         let payload = payloadOffset < packet.count ? packet.subdata(in: payloadOffset..<packet.count) : Data()
         
         let seqNum: UInt32 = packet.withUnsafeBytes { $0.load(fromByteOffset: tcpOffset + 4, as: UInt32.self) }.bigEndian
-        let ackNum: UInt32 = packet.withUnsafeBytes { $0.load(fromByteOffset: tcpOffset + 8, as: UInt32.self) }.bigEndian
         let flags = packet[tcpOffset + 13]
         
         let syn = (flags & 0x02) != 0
         let ack = (flags & 0x10) != 0
         let fin = (flags & 0x01) != 0
-        let psh = (flags & 0x08) != 0
         let rst = (flags & 0x04) != 0
         
         if rst {
@@ -481,7 +481,6 @@ class TCPConnection {
             
         case .synReceived:
             if ack {
-                clientAck = ackNum
                 state = .established
                 if !payload.isEmpty {
                     handleData(payload)
@@ -544,9 +543,9 @@ class TCPConnection {
         if isTarget {
             sendFakeResponse()
         } else {
-            if socket == -1 && !isServerConnected {
+            if connection == nil {
                 connectToServer()
-            } else if socket != -1 {
+            } else if let connection = connection, connection.state == .ready {
                 sendToServer(data)
             }
         }
@@ -573,31 +572,29 @@ class TCPConnection {
     }
     
     private func connectToServer() {
-        isServerConnected = true
-        socket = Darwin.socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)
+        let host = NWEndpoint.Host(dstIP)
+        let port = NWEndpoint.Port(rawValue: dstPort)!
         
-        var addr = sockaddr_in()
-        addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.stride)
-        addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = dstPort.bigEndian
-        addr.sin_addr.s_addr = inet_addr(dstIP)
+        connection = NWConnection(host: host, port: port, using: .tcp)
         
-        DispatchQueue.global().async { [weak self] in
+        connection?.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
             
-            let result = withUnsafeBytes(of: &addr) { addrPtr in
-                connect(self.socket, addrPtr.baseAddress!.assumingMemoryBound(to: sockaddr.self), socklen_t(MemoryLayout<sockaddr_in>.stride))
-            }
-            
-            if result == 0 {
-                DispatchQueue.main.async {
-                    self.onServerConnected()
-                }
-            } else {
-                NSLog("[TCPConnection] 服务器连接失败")
+            switch state {
+            case .ready:
+                NSLog("[TCPConnection] 服务器连接就绪: \(self.dstIP):\(self.dstPort)")
+                self.onServerConnected()
+            case .failed(let error):
+                NSLog("[TCPConnection] 服务器连接失败: \(error)")
                 self.close()
+            case .cancelled:
+                NSLog("[TCPConnection] 连接已取消")
+            default:
+                break
             }
         }
+        
+        connection?.start(queue: queue)
     }
     
     private func onServerConnected() {
@@ -605,37 +602,38 @@ class TCPConnection {
             sendToServer(clientBuffer)
             clientBuffer.removeAll()
         }
-        startReceiveLoop()
+        receiveData()
     }
     
     private func sendToServer(_ data: Data) {
-        guard socket != -1 else { return }
+        guard let connection = connection else { return }
         
-        data.withUnsafeBytes { ptr in
-            _ = send(socket, ptr.baseAddress, data.count, 0)
-        }
+        connection.send(content: data, completion: .contentProcessed { [weak self] error in
+            if let error = error {
+                NSLog("[TCPConnection] 发送失败: \(error)")
+            }
+        })
     }
     
-    private func startReceiveLoop() {
-        DispatchQueue.global().async { [weak self] in
+    private func receiveData() {
+        guard let connection = connection else { return }
+        
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, context, isComplete, error in
             guard let self = self else { return }
             
-            var buffer = [UInt8](repeating: 0, count: 8192)
-            
-            while self.socket != -1 {
-                let bytesRead = recv(self.socket, &buffer, buffer.count, 0)
-                
-                if bytesRead > 0 {
-                    let response = Data(bytes: buffer, count: bytesRead)
-                    DispatchQueue.main.async {
-                        self.sendToClient(response)
-                    }
-                } else {
-                    break
-                }
+            if let error = error {
+                NSLog("[TCPConnection] 接收失败: \(error)")
+                self.close()
+                return
             }
             
-            DispatchQueue.main.async {
+            if let data = data, !data.isEmpty {
+                self.sendToClient(data)
+            }
+            
+            if !isComplete {
+                self.receiveData()
+            } else {
                 self.closeServer()
             }
         }
@@ -770,11 +768,8 @@ class TCPConnection {
     }
     
     private func closeServer() {
-        if socket != -1 {
-            shutdown(socket, SHUT_RDWR)
-            Darwin.close(socket)
-            socket = -1
-        }
+        connection?.cancel()
+        connection = nil
     }
     
     func close() {

@@ -15,6 +15,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "10.0.0.1")
         
+        if #available(iOS 16.0, *) {
+            settings.mtu = 1500
+        } else {
+            settings.mtu = 1400
+        }
+        
         let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.0"])
         ipv4Settings.includedRoutes = [NEIPv4Route.default()]
         
@@ -35,6 +41,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         ]
         
         settings.ipv4Settings = ipv4Settings
+        
+        if #available(iOS 16.0, *) {
+            let ipv6Settings = NEIPv6Settings(addresses: ["fd00::1"], networkPrefixLengths: [64])
+            ipv6Settings.includedRoutes = [NEIPv6Route.default()]
+            settings.ipv6Settings = ipv6Settings
+        } else {
+            settings.ipv6Settings = nil
+        }
         
         let dnsSettings = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29", "114.114.114.114"])
         dnsSettings.matchDomains = [""]
@@ -57,10 +71,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 return
             }
             
-            NSLog("[PacketTunnel] 设置成功，开始处理数据包")
-            self.startReadingPackets()
-            self.startCleanupTimer()
-            completionHandler(nil)
+            if #available(iOS 16.0, *) {
+                NSLog("[PacketTunnel] 设置成功，开始处理数据包")
+                self.startReadingPackets()
+                self.startCleanupTimer()
+                completionHandler(nil)
+            } else {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    NSLog("[PacketTunnel] 设置成功，开始处理数据包")
+                    self.startReadingPackets()
+                    self.startCleanupTimer()
+                    completionHandler(nil)
+                }
+            }
         }
     }
     
@@ -81,14 +104,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard let self = self else { return }
             
             DispatchQueue.global(qos: .userInteractive).async {
-                do {
-                    for index in 0..<packets.count {
-                        let packet = packets[index]
-                        let proto = protocols[index].int32Value
-                        self.processPacket(packet, protocolNumber: proto)
+                autoreleasepool {
+                    do {
+                        for index in 0..<packets.count {
+                            let packet = packets[index]
+                            let proto = protocols[index].int32Value
+                            self.processPacket(packet, protocolNumber: proto)
+                        }
+                    } catch {
+                        NSLog("[PacketTunnel] 处理数据包异常: \(error)")
                     }
-                } catch {
-                    NSLog("[PacketTunnel] 处理数据包异常: \(error)")
                 }
                 
                 self.startReadingPackets()
@@ -164,16 +189,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let connKey = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
         
-        if (dstPort == 80 || dstPort == 8080) && !payload.isEmpty {
-            if let request = String(data: payload, encoding: .utf8),
-               request.contains("apis.map.qq.com") && request.contains("/ws/geocoder/v1") {
-                
-                NSLog("[PacketTunnel] 拦截目标请求: \(dstIP):\(dstPort)")
-                sendFakeResponse(srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort)
-                return
-            }
-        }
-        
         if let conn = tcpConnections[connKey] {
             conn.processPacket(packet)
             return
@@ -189,80 +204,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let conn = TCPConnection(packetFlow: packetFlow, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort)
         tcpConnections[connKey] = conn
         conn.processPacket(packet)
-    }
-    
-    private func sendFakeResponse(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16) {
-        guard let location = LocationStore.shared.getSelectedLocation() else {
-            NSLog("[PacketTunnel] 未选择位置")
-            return
-        }
-        
-        let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: location.adcode, regionName: location.name)
-        let fakeResponse = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nConnection: close\r\nContent-Length: \(fakeBody.count)\r\n\r\n\(fakeBody)"
-        
-        guard let responseData = fakeResponse.data(using: .utf8) else { return }
-        
-        let responsePacket = buildTCPResponse(responseData, srcIP: dstIP, srcPort: dstPort, dstIP: srcIP, dstPort: srcPort)
-        packetFlow.writePackets([responsePacket], withProtocols: [NSNumber(value: AF_INET)])
-        
-        NSLog("[PacketTunnel] 发送伪造响应: \(location.name) - \(location.adcode)")
-    }
-    
-    private func buildTCPResponse(_ payload: Data, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16) -> Data {
-        var response = Data()
-        
-        let srcBytes = parseIP(srcIP)
-        let dstBytes = parseIP(dstIP)
-        
-        var ipHeader = Data(count: 20)
-        ipHeader[0] = 0x45
-        ipHeader[1] = 0x00
-        let ipLen = UInt16(20 + 20 + payload.count)
-        withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
-        ipHeader[6] = 0x40
-        ipHeader[8] = 64
-        ipHeader[9] = 0x06
-        
-        ipHeader.replaceSubrange(12..<16, with: srcBytes)
-        ipHeader.replaceSubrange(16..<20, with: dstBytes)
-        
-        let ipChecksum = calculateChecksum(ipHeader)
-        withUnsafeBytes(of: ipChecksum.bigEndian) { ipHeader.replaceSubrange(10..<12, with: $0) }
-        
-        var tcpHeader = Data(count: 20)
-        withUnsafeBytes(of: srcPort.bigEndian) { tcpHeader.replaceSubrange(0..<2, with: $0) }
-        withUnsafeBytes(of: dstPort.bigEndian) { tcpHeader.replaceSubrange(2..<4, with: $0) }
-        
-        let seqNum: UInt32 = arc4random() % 1000000
-        withUnsafeBytes(of: seqNum.bigEndian) { tcpHeader.replaceSubrange(4..<8, with: $0) }
-        
-        tcpHeader[12] = 0x50
-        tcpHeader[13] = 0x18
-        
-        let windowSize: UInt16 = 65535
-        withUnsafeBytes(of: windowSize.bigEndian) { tcpHeader.replaceSubrange(14..<16, with: $0) }
-        
-        var pseudoHeader = Data()
-        pseudoHeader.append(contentsOf: srcBytes)
-        pseudoHeader.append(contentsOf: dstBytes)
-        pseudoHeader.append(0x00)
-        pseudoHeader.append(0x06)
-        let tcpLen = UInt16(20 + payload.count)
-        let tcpLenBytes = withUnsafeBytes(of: tcpLen.bigEndian) { Array($0) }
-        pseudoHeader.append(contentsOf: tcpLenBytes)
-        
-        var checksumData = pseudoHeader
-        checksumData.append(tcpHeader)
-        checksumData.append(payload)
-        
-        let tcpChecksum = calculateChecksum(checksumData)
-        withUnsafeBytes(of: tcpChecksum.bigEndian) { tcpHeader.replaceSubrange(16..<18, with: $0) }
-        
-        response.append(ipHeader)
-        response.append(tcpHeader)
-        response.append(payload)
-        
-        return response
     }
     
     private func parseIP(_ addr: String) -> [UInt8] {

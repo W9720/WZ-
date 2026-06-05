@@ -493,7 +493,6 @@ class TCPConnection {
     private var serverSeq: UInt32 = 0
     
     private var clientBuffer = Data()
-    private var isTarget = false
     private var state: TCPState = .closed
     private var connection: NWConnection?
     private let queue = DispatchQueue(label: "com.warzone.tcp.connection")
@@ -610,30 +609,11 @@ class TCPConnection {
     
     private func handleData(_ data: Data) {
         clientBuffer.append(data)
-        NSLog("[TCPConnection] 收到数据，累计: \(clientBuffer.count) 字节，目标: \(dstIP):\(dstPort)")
         
-        if !isTarget {
-            if let request = String(data: clientBuffer, encoding: .utf8),
-               request.contains("apis.map.qq.com") && request.contains("/ws/geocoder/v1") {
-                isTarget = true
-                NSLog("[TCPConnection] 检测到目标请求")
-            }
-        }
-        
-        if isTarget {
-            sendFakeResponse()
-        } else {
-            if connection == nil {
-                NSLog("[TCPConnection] 首次连接服务器: \(dstIP):\(dstPort)")
-                connectToServer()
-            } else if let connection = connection {
-                if connection.state == .ready {
-                    NSLog("[TCPConnection] 连接已就绪，发送数据: \(data.count) 字节")
-                    sendToServer(data)
-                } else {
-                    NSLog("[TCPConnection] 连接状态: \(connection.state)，数据将在连接就绪后发送")
-                }
-            }
+        if connection == nil {
+            connectToServer()
+        } else if let connection = connection, connection.state == .ready {
+            sendToServer(data)
         }
     }
     
@@ -736,43 +716,6 @@ class TCPConnection {
                 self.closeServer()
             }
         }
-    }
-    
-    private func sendFakeResponse() {
-        NSLog("[TCPConnection] 开始处理目标请求")
-        
-        guard let location = LocationStore.shared.getSelectedLocation() else {
-            NSLog("[🔴 位置获取失败] App Group可能没有正确配置，LocationStore返回nil")
-            NSLog("[🔴 检查扩展Entitlements是否包含: com.apple.security.application-groups")
-            sendRST()
-            return
-        }
-        
-        NSLog("[✅ 位置获取成功] adcode=\(location.adcode), name=\(location.name)")
-        
-        let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: location.adcode, regionName: location.name)
-        let fakeResponse = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nConnection: close\r\nContent-Length: \(fakeBody.count)\r\n\r\n\(fakeBody)"
-        
-        guard let responseData = fakeResponse.data(using: .utf8) else {
-            NSLog("[🔴 响应数据编码失败]")
-            sendRST()
-            return
-        }
-        
-        NSLog("[TCPConnection] 发送伪造响应: \(location.name)")
-        sendToClient(responseData)
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self = self else { return }
-            self.sendFIN(ackNum: self.clientSeq)
-        }
-    }
-    
-    private func sendRST() {
-        let flags: UInt8 = 0x04
-        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
-        packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
-        close()
     }
     
     private func sendToClient(_ data: Data) {

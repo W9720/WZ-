@@ -25,7 +25,7 @@ class CardCodeManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var isLoading = false
     
-    private let serverURL = "http://你的服务器IP:3000/cardcode"
+    private let serverURL = "http://47.104.237.94:3001/cardcode"
     
     private init() {
         loadSavedCardCode()

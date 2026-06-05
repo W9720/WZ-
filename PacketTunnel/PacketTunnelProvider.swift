@@ -6,6 +6,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private var udpSessions: [String: UDPSession] = [:]
     private var tcpConnections: [String: TCPConnection] = [:]
+    private var cleanupTimer: DispatchSourceTimer?
+    private let maxUDPSessions = 100
+    private let maxTCPConnections = 200
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         NSLog("[PacketTunnel] 启动隧道")
@@ -33,9 +36,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         settings.ipv4Settings = ipv4Settings
         
-        let dnsSettings = NEDNSSettings(servers: ["8.8.8.8", "114.114.114.114", "223.5.5.5"])
+        let dnsSettings = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29", "114.114.114.114"])
         dnsSettings.matchDomains = [""]
+        dnsSettings.timeout = 5
         settings.dnsSettings = dnsSettings
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleAppWillEnterForeground),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
         
         setTunnelNetworkSettings(settings) { [weak self] error in
             guard let self = self else { return }
@@ -48,12 +59,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             
             NSLog("[PacketTunnel] 设置成功，开始处理数据包")
             self.startReadingPackets()
+            self.startCleanupTimer()
             completionHandler(nil)
         }
     }
     
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         NSLog("[PacketTunnel] 停止隧道")
+        cleanupTimer?.cancel()
+        cleanupTimer = nil
+        NotificationCenter.default.removeObserver(self)
         udpSessions.values.forEach { $0.close() }
         udpSessions.removeAll()
         tcpConnections.values.forEach { $0.close() }
@@ -66,10 +81,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard let self = self else { return }
             
             DispatchQueue.global(qos: .userInteractive).async {
-                for index in 0..<packets.count {
-                    let packet = packets[index]
-                    let proto = protocols[index].int32Value
-                    self.processPacket(packet, protocolNumber: proto)
+                do {
+                    for index in 0..<packets.count {
+                        let packet = packets[index]
+                        let proto = protocols[index].int32Value
+                        self.processPacket(packet, protocolNumber: proto)
+                    }
+                } catch {
+                    NSLog("[PacketTunnel] 处理数据包异常: \(error)")
                 }
                 
                 self.startReadingPackets()
@@ -119,6 +138,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return
         }
         
+        if udpSessions.count >= maxUDPSessions {
+            if let oldestKey = udpSessions.keys.first {
+                udpSessions[oldestKey]?.close()
+                udpSessions.removeValue(forKey: oldestKey)
+            }
+        }
+        
         let session = UDPSession(srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, packetFlow: packetFlow)
         udpSessions[key] = session
         session.start()
@@ -151,6 +177,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         if let conn = tcpConnections[connKey] {
             conn.processPacket(packet)
             return
+        }
+        
+        if tcpConnections.count >= maxTCPConnections {
+            if let oldestKey = tcpConnections.keys.first {
+                tcpConnections[oldestKey]?.close()
+                tcpConnections.removeValue(forKey: oldestKey)
+            }
         }
         
         let conn = TCPConnection(packetFlow: packetFlow, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort)
@@ -254,6 +287,33 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         return UInt16(~sum & 0xFFFF)
     }
+    
+    @objc private func handleAppWillEnterForeground() {
+        NSLog("[PacketTunnel] 应用进入前台，清理所有连接")
+        
+        udpSessions.values.forEach { $0.close() }
+        tcpConnections.values.forEach { $0.close() }
+        udpSessions.removeAll()
+        tcpConnections.removeAll()
+    }
+    
+    private func startCleanupTimer() {
+        cleanupTimer = DispatchSource.makeTimerSource(queue: .global())
+        cleanupTimer?.schedule(deadline: .now(), repeating: 60.0)
+        cleanupTimer?.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            
+            let udpCount = self.udpSessions.count
+            let tcpCount = self.tcpConnections.count
+            
+            self.udpSessions = self.udpSessions.filter { $0.value.connection != nil }
+            self.tcpConnections = self.tcpConnections.filter { $0.value.connection != nil }
+            
+            NSLog("[PacketTunnel] 连接清理: UDP=%d->%d, TCP=%d->%d", 
+                  udpCount, self.udpSessions.count, tcpCount, self.tcpConnections.count)
+        }
+        cleanupTimer?.resume()
+    }
 }
 
 class UDPSession {
@@ -264,6 +324,8 @@ class UDPSession {
     private let packetFlow: NEPacketTunnelFlow
     private var connection: NWConnection?
     private let queue = DispatchQueue(label: "com.warzone.udp.session")
+    private var lastActivity: Date = Date()
+    private var timeoutTimer: DispatchSourceTimer?
     
     init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
         self.srcIP = srcIP
@@ -274,6 +336,8 @@ class UDPSession {
     }
     
     func start() {
+        lastActivity = Date()
+        
         let host = NWEndpoint.Host(dstIP)
         let port = NWEndpoint.Port(rawValue: dstPort)!
         
@@ -281,6 +345,7 @@ class UDPSession {
         
         connection?.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
+            self.lastActivity = Date()
             
             switch state {
             case .ready:
@@ -297,9 +362,11 @@ class UDPSession {
         }
         
         connection?.start(queue: queue)
+        startTimeoutTimer()
     }
     
     func send(_ data: Data) {
+        lastActivity = Date()
         guard let connection = connection else { return }
         
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
@@ -315,6 +382,8 @@ class UDPSession {
         connection.receiveMessage { [weak self] data, context, isComplete, error in
             guard let self = self else { return }
             
+            self.lastActivity = Date()
+            
             if let error = error {
                 NSLog("[UDPSession] 接收失败: \(error)")
                 self.close()
@@ -329,6 +398,20 @@ class UDPSession {
                 self.receiveData()
             }
         }
+    }
+    
+    private func startTimeoutTimer() {
+        timeoutTimer = DispatchSource.makeTimerSource(queue: queue)
+        timeoutTimer?.schedule(deadline: .now(), repeating: 5.0)
+        timeoutTimer?.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            
+            if Date().timeIntervalSince(self.lastActivity) > 30 {
+                NSLog("[UDPSession] 超时自动关闭: \(self.dstIP):\(self.dstPort)")
+                self.close()
+            }
+        }
+        timeoutTimer?.resume()
     }
     
     private func sendResponse(_ data: Data) {
@@ -404,6 +487,8 @@ class UDPSession {
     }
     
     func close() {
+        timeoutTimer?.cancel()
+        timeoutTimer = nil
         connection?.cancel()
         connection = nil
     }
@@ -425,6 +510,8 @@ class TCPConnection {
     private var state: TCPState = .closed
     private var connection: NWConnection?
     private let queue = DispatchQueue(label: "com.warzone.tcp.connection")
+    private var lastActivity: Date = Date()
+    private var timeoutTimer: DispatchSourceTimer?
     
     enum TCPState {
         case closed
@@ -448,6 +535,7 @@ class TCPConnection {
     }
     
     func processPacket(_ packet: Data) {
+        lastActivity = Date()
         guard packet.count >= 20 else { return }
         
         let ihl = Int((packet[0] & 0x0F)) * 4
@@ -572,13 +660,22 @@ class TCPConnection {
     }
     
     private func connectToServer() {
+        lastActivity = Date()
+        
         let host = NWEndpoint.Host(dstIP)
         let port = NWEndpoint.Port(rawValue: dstPort)!
         
-        connection = NWConnection(host: host, port: port, using: .tcp)
+        let tcpOptions = NWProtocolTCP.Options()
+        tcpOptions.noDelay = true
+        tcpOptions.enableKeepalive = true
+        tcpOptions.keepaliveInterval = 30
+        
+        let parameters = NWParameters(tls: nil, tcp: tcpOptions)
+        connection = NWConnection(host: host, port: port, using: parameters)
         
         connection?.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
+            self.lastActivity = Date()
             
             switch state {
             case .ready:
@@ -595,6 +692,7 @@ class TCPConnection {
         }
         
         connection?.start(queue: queue)
+        startTimeoutTimer()
     }
     
     private func onServerConnected() {
@@ -606,6 +704,7 @@ class TCPConnection {
     }
     
     private func sendToServer(_ data: Data) {
+        lastActivity = Date()
         guard let connection = connection else { return }
         
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
@@ -620,6 +719,8 @@ class TCPConnection {
         
         connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { [weak self] data, context, isComplete, error in
             guard let self = self else { return }
+            
+            self.lastActivity = Date()
             
             if let error = error {
                 NSLog("[TCPConnection] 接收失败: \(error)")
@@ -772,7 +873,23 @@ class TCPConnection {
         connection = nil
     }
     
+    private func startTimeoutTimer() {
+        timeoutTimer = DispatchSource.makeTimerSource(queue: queue)
+        timeoutTimer?.schedule(deadline: .now(), repeating: 30.0)
+        timeoutTimer?.setEventHandler { [weak self] in
+            guard let self = self else { return }
+            
+            if Date().timeIntervalSince(self.lastActivity) > 300 {
+                NSLog("[TCPConnection] 超时自动关闭: \(self.dstIP):\(self.dstPort)")
+                self.close()
+            }
+        }
+        timeoutTimer?.resume()
+    }
+    
     func close() {
+        timeoutTimer?.cancel()
+        timeoutTimer = nil
         closeServer()
         state = .closed
     }

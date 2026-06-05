@@ -339,9 +339,10 @@ struct ContentView: View {
     
     private func formatDate(_ dateString: String) -> String {
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: dateString) {
             let outputFormatter = DateFormatter()
-            outputFormatter.dateFormat = "yyyy-MM-dd"
+            outputFormatter.dateFormat = "yyyy-MM-dd HH:mm"
             return outputFormatter.string(from: date)
         }
         return dateString
@@ -435,8 +436,9 @@ struct SettingsView: View {
         }
     }
     
-    private func formatDate(_ dateString: String) -> String {
+    private func formatDateWithTime(_ dateString: String) -> String {
         let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = formatter.date(from: dateString) {
             let outputFormatter = DateFormatter()
             outputFormatter.dateFormat = "yyyy-MM-dd HH:mm"

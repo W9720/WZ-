@@ -1,5 +1,6 @@
 import NetworkExtension
 import Foundation
+import Darwin
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
     

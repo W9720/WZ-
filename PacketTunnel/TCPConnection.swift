@@ -83,7 +83,6 @@ class TCPConnection {
             
             if let data = data, !data.isEmpty {
                 if self.isTargetRequest {
-                    // 吞掉真实响应
                     print("[LocationInjector] 拦截到真实响应，已忽略")
                 } else {
                     self.onDataReceived?(data)

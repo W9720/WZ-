@@ -21,19 +21,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             settings.mtu = 1400
         }
         
-        let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.0"])
+        let ipv4Settings = NEIPv4Settings(addresses: ["192.168.99.2"], subnetMasks: ["255.255.255.0"])
         ipv4Settings.includedRoutes = [NEIPv4Route.default()]
         
         ipv4Settings.excludedRoutes = [
             NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),
-            NEIPv4Route(destinationAddress: "10.1.0.0", subnetMask: "255.255.0.0"),
-            NEIPv4Route(destinationAddress: "10.2.0.0", subnetMask: "255.254.0.0"),
-            NEIPv4Route(destinationAddress: "10.4.0.0", subnetMask: "255.252.0.0"),
-            NEIPv4Route(destinationAddress: "10.8.0.0", subnetMask: "255.248.0.0"),
-            NEIPv4Route(destinationAddress: "10.16.0.0", subnetMask: "255.240.0.0"),
-            NEIPv4Route(destinationAddress: "10.32.0.0", subnetMask: "255.224.0.0"),
-            NEIPv4Route(destinationAddress: "10.64.0.0", subnetMask: "255.192.0.0"),
-            NEIPv4Route(destinationAddress: "10.128.0.0", subnetMask: "255.128.0.0"),
+            NEIPv4Route(destinationAddress: "192.168.99.0", subnetMask: "255.255.255.0"),
+            NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
             NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),
             NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0"),
             NEIPv4Route(destinationAddress: "224.0.0.0", subnetMask: "240.0.0.0"),
@@ -443,7 +437,21 @@ class UDPSession {
     }
     
     private func parseIP(_ addr: String) -> [UInt8] {
-        return addr.split(separator: ".").compactMap { UInt8($0) }
+        let parts = addr.split(separator: ".")
+        guard parts.count == 4 else {
+            return [127, 0, 0, 1]
+        }
+        
+        var result: [UInt8] = []
+        for part in parts {
+            if let num = UInt8(part) {
+                result.append(num)
+            } else {
+                return [127, 0, 0, 1]
+            }
+        }
+        
+        return result
     }
     
     private func calculateChecksum(_ data: Data) -> UInt16 {
@@ -847,7 +855,21 @@ class TCPConnection {
     }
     
     private func parseIP(_ addr: String) -> [UInt8] {
-        return addr.split(separator: ".").compactMap { UInt8($0) }
+        let parts = addr.split(separator: ".")
+        guard parts.count == 4 else {
+            return [127, 0, 0, 1]
+        }
+        
+        var result: [UInt8] = []
+        for part in parts {
+            if let num = UInt8(part) {
+                result.append(num)
+            } else {
+                return [127, 0, 0, 1]
+            }
+        }
+        
+        return result
     }
     
     private func calculateChecksum(_ data: Data) -> UInt16 {

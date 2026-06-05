@@ -1,12 +1,13 @@
 import NetworkExtension
 import Foundation
+import Network
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
-    private var packetFlowManager: PacketFlowManager?
+    private var udpSessions: [String: UDPSession] = [:]
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        NSLog("[PacketTunnel] 开始启动隧道...")
+        NSLog("[PacketTunnel] 启动隧道")
         
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "10.0.0.1")
         
@@ -29,75 +30,49 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard let self = self else { return }
             
             if let error = error {
-                NSLog("[PacketTunnel] 设置网络配置失败: \(error.localizedDescription)")
+                NSLog("[PacketTunnel] 设置失败: \(error)")
                 completionHandler(error)
                 return
             }
             
-            NSLog("[PacketTunnel] 网络配置设置成功")
-            
-            self.packetFlowManager = PacketFlowManager(packetFlow: self.packetFlow)
-            self.packetFlowManager?.startProcessing()
-            
+            NSLog("[PacketTunnel] 设置成功，开始处理数据包")
+            self.startReading()
             completionHandler(nil)
         }
     }
     
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        NSLog("[PacketTunnel] 停止隧道，原因: \(reason.rawValue)")
-        packetFlowManager?.stop()
+        NSLog("[PacketTunnel] 停止隧道")
+        udpSessions.values.forEach { $0.cancel() }
+        udpSessions.removeAll()
         completionHandler()
     }
-}
-
-class PacketFlowManager {
-    private let packetFlow: NEPacketTunnelFlow
-    private let targetHost = "apis.map.qq.com"
-    private let targetPath = "/ws/geocoder/v1"
     
-    private var connections: [String: ProxyConnection] = [:]
-    
-    init(packetFlow: NEPacketTunnelFlow) {
-        self.packetFlow = packetFlow
-    }
-    
-    func startProcessing() {
-        readPackets()
-    }
-    
-    func stop() {
-        connections.values.forEach { $0.cancel() }
-        connections.removeAll()
-    }
-    
-    private func readPackets() {
+    private func startReading() {
         packetFlow.readPackets { [weak self] packets, protocols in
             guard let self = self else { return }
             
             for (index, packet) in packets.enumerated() {
-                let protocolNumber = (protocols[index] as! NSNumber).int32Value
-                self.processPacket(packet, protocolNumber: protocolNumber)
+                let proto = (protocols[index] as! NSNumber).int32Value
+                self.handlePacket(packet, protocolNumber: proto)
             }
             
-            self.readPackets()
+            self.startReading()
         }
     }
     
-    private func processPacket(_ data: Data, protocolNumber: Int32) {
+    private func handlePacket(_ data: Data, protocolNumber: Int32) {
         guard data.count >= 20 else { return }
         
-        let versionAndIHL = data[0]
-        let ihl = Int(versionAndIHL & 0x0F) * 4
-        
+        let ihl = Int((data[0] & 0x0F)) * 4
         guard ihl >= 20 && data.count >= ihl else { return }
         
         let protocolType = data[9]
-        
-        let sourceIP = "\(data[12]).\(data[13]).\(data[14]).\(data[15])"
-        let destIP = "\(data[16]).\(data[17]).\(data[18]).\(data[19])"
+        let srcIP = "\(data[12]).\(data[13]).\(data[14]).\(data[15])"
+        let dstIP = "\(data[16]).\(data[17]).\(data[18]).\(data[19])"
         
         if protocolType == 17 {
-            handleUDP(data, ipHeaderLength: ihl, sourceIP: sourceIP, destIP: destIP)
+            handleUDP(data, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
             return
         }
         
@@ -106,140 +81,288 @@ class PacketFlowManager {
         guard data.count >= ihl + 20 else { return }
         
         let tcpOffset = ihl
-        let sourcePort = UInt16(data[tcpOffset]) << 8 | UInt16(data[tcpOffset + 1])
-        let destPort = UInt16(data[tcpOffset + 2]) << 8 | UInt16(data[tcpOffset + 3])
+        let srcPort = UInt16(data[tcpOffset]) << 8 | UInt16(data[tcpOffset + 1])
+        let dstPort = UInt16(data[tcpOffset + 2]) << 8 | UInt16(data[tcpOffset + 3])
         
-        if destPort != 80 && destPort != 8080 {
-            forwardPacket(data)
+        if dstPort == 80 || dstPort == 8080 {
+            let conn = TCPForwarder(packetFlow: packetFlow, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort)
+            conn.forwardPacket(data)
+        } else {
+            forwardTCP(data, dstIP: dstIP, dstPort: dstPort)
+        }
+    }
+    
+    private func handleUDP(_ data: Data, ipHeaderLen: Int, srcIP: String, dstIP: String) {
+        guard data.count >= ipHeaderLen + 8 else { return }
+        
+        let udpOffset = ipHeaderLen
+        let srcPort = UInt16(data[udpOffset]) << 8 | UInt16(data[udpOffset + 1])
+        let dstPort = UInt16(data[udpOffset + 2]) << 8 | UInt16(data[udpOffset + 3])
+        let length = Int(UInt16(data[udpOffset + 4]) << 8 | UInt16(data[udpOffset + 5]))
+        
+        let payloadOffset = udpOffset + 8
+        guard data.count >= payloadOffset else { return }
+        let payload = data.subdata(in: payloadOffset..<min(data.count, payloadOffset + length - 8))
+        
+        let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
+        
+        if let session = udpSessions[key] {
+            session.send(payload)
             return
         }
         
-        let connectionKey = "\(sourceIP):\(sourcePort)-\(destIP):\(destPort)"
-        
-        var connection = connections[connectionKey]
-        
-        if connection == nil {
-            connection = ProxyConnection(
-                sourceIP: sourceIP,
-                sourcePort: sourcePort,
-                destIP: destIP,
-                destPort: destPort,
-                packetFlow: packetFlow,
-                targetHost: targetHost,
-                targetPath: targetPath
-            )
-            connections[connectionKey] = connection
-        }
-        
-        guard let conn = connection else { return }
-        
-        let flags = data[tcpOffset + 13]
-        let dataOffset = Int((data[tcpOffset + 12] >> 4) & 0x0F) * 4
-        let payloadOffset = ihl + dataOffset
-        let payload = payloadOffset < data.count ? data.subdata(in: payloadOffset..<data.count) : Data()
-        
-        conn.processPacket(flags: flags, payload: payload)
-        
-        if (flags & 0x01) != 0 || (flags & 0x04) != 0 {
-            conn.cancel()
-            connections.removeValue(forKey: connectionKey)
-        }
+        let session = UDPSession(srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, packetFlow: packetFlow)
+        udpSessions[key] = session
+        session.start()
+        session.send(payload)
     }
     
-    private func handleUDP(_ data: Data, ipHeaderLength: Int, sourceIP: String, destIP: String) {
-        forwardPacket(data)
-    }
-    
-    private func forwardPacket(_ data: Data) {
-        packetFlow.writePackets([data], withProtocols: [AF_INET as NSNumber])
+    private func forwardTCP(_ data: Data, dstIP: String, dstPort: UInt16) {
+        let host = NWEndpoint.Host(rawValue: dstIP)!
+        let port = NWEndpoint.Port(rawValue: dstPort)!
+        
+        let conn = NWConnection(host: host, port: port, using: .tcp)
+        
+        conn.stateUpdateHandler = { state in
+            switch state {
+            case .ready:
+                conn.send(content: data, completion: .contentProcessed { _ in })
+                
+                conn.receive(minimumIncompleteLength: 1, maximumLength: 65535) { data, _, _, error in
+                    if let data = data {
+                        self.packetFlow.writePackets([data], withProtocols: [AF_INET as NSNumber])
+                    }
+                    conn.cancel()
+                }
+                
+            case .failed, .cancelled:
+                conn.cancel()
+                
+            default:
+                break
+            }
+        }
+        
+        conn.start(queue: DispatchQueue.global())
     }
 }
 
-class ProxyConnection {
-    private let sourceIP: String
-    private let sourcePort: UInt16
-    private let destIP: String
-    private let destPort: UInt16
+class UDPSession {
+    private let srcIP: String
+    private let srcPort: UInt16
+    private let dstIP: String
+    private let dstPort: UInt16
     private let packetFlow: NEPacketTunnelFlow
-    private let targetHost: String
-    private let targetPath: String
+    private var connection: NWConnection?
     
-    private var serverConnection: NWConnection?
-    private var isConnected = false
-    private var requestBuffer = Data()
-    private var isTargetRequest = false
-    private var responseSent = false
-    
-    init(sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16, packetFlow: NEPacketTunnelFlow, targetHost: String, targetPath: String) {
-        self.sourceIP = sourceIP
-        self.sourcePort = sourcePort
-        self.destIP = destIP
-        self.destPort = destPort
+    init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
+        self.srcIP = srcIP
+        self.srcPort = srcPort
+        self.dstIP = dstIP
+        self.dstPort = dstPort
         self.packetFlow = packetFlow
-        self.targetHost = targetHost
-        self.targetPath = targetPath
     }
     
-    func processPacket(flags: UInt8, payload: Data) {
+    func start() {
+        let host = NWEndpoint.Host(rawValue: dstIP)!
+        let port = NWEndpoint.Port(rawValue: dstPort)!
+        
+        connection = NWConnection(host: host, port: port, using: .udp)
+        
+        connection?.stateUpdateHandler = { [weak self] state in
+            guard let self = self else { return }
+            
+            switch state {
+            case .ready:
+                self.connection?.receiveMessage { [weak self] data, _, _, error in
+                    guard let self = self else { return }
+                    
+                    if let data = data {
+                        self.sendResponse(data)
+                    }
+                    
+                    if error == nil {
+                        self.connection?.receiveMessage(completion: $0)
+                    }
+                }
+                
+            case .failed, .cancelled:
+                break
+                
+            default:
+                break
+            }
+        }
+        
+        connection?.start(queue: DispatchQueue.global())
+    }
+    
+    func send(_ data: Data) {
+        connection?.send(content: data, completion: .idempotent)
+    }
+    
+    private func sendResponse(_ data: Data) {
+        var response = Data()
+        
+        let srcBytes = parseIP(dstIP)
+        let dstBytes = parseIP(srcIP)
+        
+        var ipHeader = Data()
+        ipHeader.append(0x45)
+        ipHeader.append(0x00)
+        let ipLen = UInt16(20 + 8 + data.count)
+        ipHeader.append(UInt8(ipLen >> 8))
+        ipHeader.append(UInt8(ipLen & 0xFF))
+        ipHeader.append(0x00)
+        ipHeader.append(0x00)
+        ipHeader.append(0x40)
+        ipHeader.append(0x00)
+        ipHeader.append(0x40)
+        ipHeader.append(0x11)
+        
+        let ipChecksum = calculateChecksum(ipHeader)
+        ipHeader.append(contentsOf: withUnsafeBytes(of: ipChecksum.bigEndian) { Data($0) })
+        ipHeader.append(contentsOf: srcBytes)
+        ipHeader.append(contentsOf: dstBytes)
+        
+        var udpHeader = Data()
+        udpHeader.append(UInt8(dstPort >> 8))
+        udpHeader.append(UInt8(dstPort & 0xFF))
+        udpHeader.append(UInt8(srcPort >> 8))
+        udpHeader.append(UInt8(srcPort & 0xFF))
+        let udpLen = UInt16(8 + data.count)
+        udpHeader.append(UInt8(udpLen >> 8))
+        udpHeader.append(UInt8(udpLen & 0xFF))
+        udpHeader.append(0x00)
+        udpHeader.append(0x00)
+        
+        var pseudoHeader = Data()
+        pseudoHeader.append(contentsOf: srcBytes)
+        pseudoHeader.append(contentsOf: dstBytes)
+        pseudoHeader.append(0x00)
+        pseudoHeader.append(0x11)
+        pseudoHeader.append(UInt8(udpLen >> 8))
+        pseudoHeader.append(UInt8(udpLen & 0xFF))
+        
+        var checksumData = pseudoHeader
+        checksumData.append(udpHeader)
+        checksumData.append(data)
+        
+        let udpChecksum = calculateChecksum(checksumData)
+        udpHeader.replaceSubrange(6..<8, with: withUnsafeBytes(of: udpChecksum.bigEndian) { Data($0) })
+        
+        response.append(ipHeader)
+        response.append(udpHeader)
+        response.append(data)
+        
+        packetFlow.writePackets([response], withProtocols: [AF_INET as NSNumber])
+    }
+    
+    private func parseIP(_ addr: String) -> [UInt8] {
+        return addr.split(separator: ".").compactMap { UInt8($0) }
+    }
+    
+    private func calculateChecksum(_ data: Data) -> UInt16 {
+        var sum: UInt32 = 0
+        let words = data.count / 2
+        
+        for i in 0..<words {
+            sum += UInt32(data[i * 2]) << 8 | UInt32(data[i * 2 + 1])
+        }
+        
+        if data.count % 2 == 1 {
+            sum += UInt32(data[data.count - 1]) << 8
+        }
+        
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
+        
+        return UInt16(~sum & 0xFFFF)
+    }
+    
+    func cancel() {
+        connection?.cancel()
+        connection = nil
+    }
+}
+
+class TCPForwarder {
+    private let packetFlow: NEPacketTunnelFlow
+    private let srcIP: String
+    private let srcPort: UInt16
+    private let dstIP: String
+    private let dstPort: UInt16
+    private var connection: NWConnection?
+    private var clientBuffer = Data()
+    private var isTarget = false
+    
+    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16) {
+        self.packetFlow = packetFlow
+        self.srcIP = srcIP
+        self.srcPort = srcPort
+        self.dstIP = dstIP
+        self.dstPort = dstPort
+    }
+    
+    func forwardPacket(_ data: Data) {
+        let tcpOffset = Int((data[0] & 0x0F)) * 4
+        let flags = data[tcpOffset + 13]
+        let dataOffset = Int((data[tcpOffset + 12] >> 4) & 0x0F) * 4
+        let payloadOffset = tcpOffset + dataOffset
+        let payload = payloadOffset < data.count ? data.subdata(in: payloadOffset..<data.count) : Data()
+        
         if (flags & 0x02) != 0 {
             sendSYNACK()
             return
         }
         
-        if (flags & 0x10) != 0 && !isConnected {
+        if (flags & 0x10) != 0 && connection == nil {
             connectToServer()
-            return
         }
         
         if !payload.isEmpty {
-            requestBuffer.append(payload)
+            clientBuffer.append(payload)
             
-            if !isTargetRequest {
-                if let request = HTTPParser.shared.parseRequest(requestBuffer) {
-                    isTargetRequest = LocationInjector.shared.isTargetRequest(host: request.host, path: request.path)
-                    if isTargetRequest {
-                        NSLog("[ProxyConnection] 检测到目标请求")
-                    }
+            if !isTarget {
+                if let request = HTTPParser.shared.parseRequest(clientBuffer) {
+                    isTarget = LocationInjector.shared.isTargetRequest(host: request.host, path: request.path)
                 }
             }
             
-            if isConnected && serverConnection != nil && !isTargetRequest {
-                serverConnection?.send(content: payload, completion: .contentProcessed({ _ in }))
+            if connection != nil && !isTarget {
+                connection?.send(content: payload, completion: .contentProcessed({ _ in }))
             }
         }
     }
     
     private func sendSYNACK() {
-        let synAckPacket = buildTCPPacket(flags: 0x12, payload: Data())
-        packetFlow.writePackets([synAckPacket], withProtocols: [AF_INET as NSNumber])
+        let packet = buildTCPPacket(flags: 0x12, payload: Data())
+        packetFlow.writePackets([packet], withProtocols: [AF_INET as NSNumber])
     }
     
     private func connectToServer() {
-        let host = NWEndpoint.Host(rawValue: destIP)!
-        let port = NWEndpoint.Port(rawValue: destPort)!
+        let host = NWEndpoint.Host(rawValue: dstIP)!
+        let port = NWEndpoint.Port(rawValue: dstPort)!
         
-        serverConnection = NWConnection(host: host, port: port, using: .tcp)
+        connection = NWConnection(host: host, port: port, using: .tcp)
         
-        serverConnection?.stateUpdateHandler = { [weak self] state in
+        connection?.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
             
             switch state {
             case .ready:
-                self.isConnected = true
-                NSLog("[ProxyConnection] 服务器连接就绪")
-                
-                if self.requestBuffer.count > 0 {
-                    if self.isTargetRequest {
+                if self.clientBuffer.count > 0 {
+                    if self.isTarget {
                         self.sendFakeResponse()
                     } else {
-                        self.serverConnection?.send(content: self.requestBuffer, completion: .contentProcessed({ _ in }))
+                        self.connection?.send(content: self.clientBuffer, completion: .contentProcessed({ _ in }))
                         self.startReceiving()
                     }
                 }
                 
             case .failed(let error):
-                NSLog("[ProxyConnection] 服务器连接失败: \(error)")
-                self.sendRST()
+                NSLog("[TCPForwarder] 连接失败: \(error)")
                 
             case .cancelled:
                 break
@@ -249,34 +372,28 @@ class ProxyConnection {
             }
         }
         
-        serverConnection?.start(queue: DispatchQueue.global())
+        connection?.start(queue: DispatchQueue.global())
     }
     
     private func startReceiving() {
-        serverConnection?.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, _, error in
+        connection?.receive(minimumIncompleteLength: 1, maximumLength: 65535) { [weak self] data, _, _, error in
             guard let self = self else { return }
-            
-            if let error = error {
-                NSLog("[ProxyConnection] 接收失败: \(error)")
-                return
-            }
             
             if let data = data {
                 self.sendToClient(data)
             }
             
-            self.startReceiving()
+            if error == nil {
+                self.startReceiving()
+            }
         }
     }
     
     private func sendFakeResponse() {
         guard let location = LocationStore.shared.getSelectedLocation() else {
-            NSLog("[ProxyConnection] 未选择位置")
             startReceiving()
             return
         }
-        
-        NSLog("[ProxyConnection] 发送伪造响应")
         
         let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: location.adcode, regionName: location.name)
         let fakeResponse = HTTPResponse(
@@ -291,15 +408,10 @@ class ProxyConnection {
             body: fakeBody.data(using: .utf8) ?? Data()
         )
         
-        let responseData = fakeResponse.toData()
-        sendToClient(responseData)
+        sendToClient(fakeResponse.toData())
         
-        responseSent = true
-        
-        if serverConnection != nil {
-            serverConnection?.cancel()
-            serverConnection = nil
-        }
+        connection?.cancel()
+        connection = nil
     }
     
     private func sendToClient(_ data: Data) {
@@ -310,7 +422,7 @@ class ProxyConnection {
             let size = min(maxSize, data.count - offset)
             let chunk = data.subdata(in: offset..<offset + size)
             
-            let flags: UInt8 = 0x18
+            let flags: UInt8 = offset + size >= data.count ? 0x11 : 0x18
             let packet = buildTCPPacket(flags: flags, payload: chunk)
             packetFlow.writePackets([packet], withProtocols: [AF_INET as NSNumber])
             
@@ -318,23 +430,18 @@ class ProxyConnection {
         }
     }
     
-    private func sendRST() {
-        let rstPacket = buildTCPPacket(flags: 0x04, payload: Data())
-        packetFlow.writePackets([rstPacket], withProtocols: [AF_INET as NSNumber])
-    }
-    
     private func buildTCPPacket(flags: UInt8, payload: Data) -> Data {
         var packet = Data()
         
-        let srcIPBytes = parseIP(destIP)
-        let dstIPBytes = parseIP(sourceIP)
+        let srcBytes = parseIP(dstIP)
+        let dstBytes = parseIP(srcIP)
         
         var ipHeader = Data()
         ipHeader.append(0x45)
         ipHeader.append(0x00)
-        let ipTotalLength = UInt16(20 + 20 + payload.count)
-        ipHeader.append(UInt8(ipTotalLength >> 8))
-        ipHeader.append(UInt8(ipTotalLength & 0xFF))
+        let ipLen = UInt16(20 + 20 + payload.count)
+        ipHeader.append(UInt8(ipLen >> 8))
+        ipHeader.append(UInt8(ipLen & 0xFF))
         ipHeader.append(0x00)
         ipHeader.append(0x00)
         ipHeader.append(0x40)
@@ -344,14 +451,14 @@ class ProxyConnection {
         
         let ipChecksum = calculateChecksum(ipHeader)
         ipHeader.append(contentsOf: withUnsafeBytes(of: ipChecksum.bigEndian) { Data($0) })
-        ipHeader.append(contentsOf: srcIPBytes)
-        ipHeader.append(contentsOf: dstIPBytes)
+        ipHeader.append(contentsOf: srcBytes)
+        ipHeader.append(contentsOf: dstBytes)
         
         var tcpHeader = Data()
-        tcpHeader.append(UInt8(destPort >> 8))
-        tcpHeader.append(UInt8(destPort & 0xFF))
-        tcpHeader.append(UInt8(sourcePort >> 8))
-        tcpHeader.append(UInt8(sourcePort & 0xFF))
+        tcpHeader.append(UInt8(dstPort >> 8))
+        tcpHeader.append(UInt8(dstPort & 0xFF))
+        tcpHeader.append(UInt8(srcPort >> 8))
+        tcpHeader.append(UInt8(srcPort & 0xFF))
         
         let seqNum: UInt32 = arc4random() % 1000000
         tcpHeader.append(UInt8(seqNum >> 24))
@@ -376,13 +483,13 @@ class ProxyConnection {
         tcpHeader.append(0x00)
         
         var pseudoHeader = Data()
-        pseudoHeader.append(contentsOf: srcIPBytes)
-        pseudoHeader.append(contentsOf: dstIPBytes)
+        pseudoHeader.append(contentsOf: srcBytes)
+        pseudoHeader.append(contentsOf: dstBytes)
         pseudoHeader.append(0x00)
         pseudoHeader.append(0x06)
-        let tcpLength = UInt16(tcpHeader.count + payload.count)
-        pseudoHeader.append(UInt8(tcpLength >> 8))
-        pseudoHeader.append(UInt8(tcpLength & 0xFF))
+        let tcpLen = UInt16(tcpHeader.count + payload.count)
+        pseudoHeader.append(UInt8(tcpLen >> 8))
+        pseudoHeader.append(UInt8(tcpLen & 0xFF))
         
         var checksumData = pseudoHeader
         checksumData.append(tcpHeader)
@@ -398,8 +505,8 @@ class ProxyConnection {
         return packet
     }
     
-    private func parseIP(_ address: String) -> [UInt8] {
-        return address.split(separator: ".").compactMap { UInt8($0) }
+    private func parseIP(_ addr: String) -> [UInt8] {
+        return addr.split(separator: ".").compactMap { UInt8($0) }
     }
     
     private func calculateChecksum(_ data: Data) -> UInt16 {
@@ -419,10 +526,5 @@ class ProxyConnection {
         }
         
         return UInt16(~sum & 0xFFFF)
-    }
-    
-    func cancel() {
-        serverConnection?.cancel()
-        serverConnection = nil
     }
 }

@@ -63,7 +63,14 @@ jobs:
       - name: Embed PacketTunnel extension into app
         run: |
           mkdir -p ./build/WarZoneChanger.app/PlugIns
-          cp -R ./build/PacketTunnel.appex ./build/WarZoneChanger.app/PlugIns/
+          if [ -d "./build/PacketTunnel.appex" ]; then
+            cp -R ./build/PacketTunnel.appex ./build/WarZoneChanger.app/PlugIns/
+            echo "PacketTunnel.appex embedded successfully"
+          else
+            echo "ERROR: PacketTunnel.appex not found!"
+            ls -la ./build/
+            exit 1
+          fi
 
       - name: Install ldid for jailbroken signing
         run: |

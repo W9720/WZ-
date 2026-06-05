@@ -19,14 +19,16 @@ class VPNManager: ObservableObject {
     private func loadVPNConfiguration() {
         NEVPNManager.shared().loadFromPreferences { [weak self] error in
             if let error = error {
-                print("加载VPN配置失败: \(error.localizedDescription)")
+                print("[VPN] 加载VPN配置失败: \(error.localizedDescription)")
                 self?.createVPNConfiguration()
                 return
             }
             
             self?.vpnManager = NEVPNManager.shared()
+            print("[VPN] 加载VPN配置成功, protocol: \(String(describing: self?.vpnManager?.protocolConfiguration))")
             
             if self?.vpnManager?.protocolConfiguration == nil {
+                print("[VPN] 协议配置为空，创建新配置")
                 self?.createVPNConfiguration()
             } else {
                 self?.checkStatus()
@@ -35,9 +37,12 @@ class VPNManager: ObservableObject {
     }
     
     private func createVPNConfiguration() {
+        print("[VPN] 创建VPN配置, tunnelBundleIdentifier: \(tunnelBundleIdentifier)")
+        
         let tunnelProtocol = NETunnelProviderProtocol()
         tunnelProtocol.providerBundleIdentifier = tunnelBundleIdentifier
         tunnelProtocol.serverAddress = "WarZoneChanger"
+        tunnelProtocol.providerConfiguration = ["appGroup": appGroupIdentifier]
         
         vpnManager = NEVPNManager.shared()
         vpnManager?.protocolConfiguration = tunnelProtocol
@@ -46,11 +51,17 @@ class VPNManager: ObservableObject {
         
         vpnManager?.saveToPreferences { [weak self] error in
             if let error = error {
-                print("保存VPN配置失败: \(error.localizedDescription)")
+                print("[VPN] 保存VPN配置失败: \(error.localizedDescription)")
+                print("[VPN] 错误代码: \(error._code), 错误域: \(error._domain)")
                 self?.errorMessage = "VPN配置保存失败: \(error.localizedDescription)"
+                
+                if let neError = error as NSError? {
+                    print("[VPN] NSError 详细信息: \(neError)")
+                    print("[VPN] NSError userInfo: \(neError.userInfo)")
+                }
             } else {
-                print("VPN配置创建成功")
-                self?.checkStatus()
+                print("[VPN] VPN配置创建成功")
+                self?.loadVPNConfiguration()
             }
         }
     }
@@ -62,12 +73,24 @@ class VPNManager: ObservableObject {
         case .connected:
             isConnected = true
             isConnecting = false
+            print("[VPN] 状态: 已连接")
         case .connecting, .reasserting:
             isConnecting = true
             isConnected = false
-        default:
+            print("[VPN] 状态: 连接中")
+        case .disconnected:
             isConnected = false
             isConnecting = false
+            print("[VPN] 状态: 已断开")
+        case .invalid:
+            isConnected = false
+            isConnecting = false
+            print("[VPN] 状态: 无效配置")
+            createVPNConfiguration()
+        @unknown default:
+            isConnected = false
+            isConnecting = false
+            print("[VPN] 状态: 未知")
         }
     }
     
@@ -77,17 +100,29 @@ class VPNManager: ObservableObject {
             return
         }
         
+        print("[VPN] 开始启动VPN...")
+        
         do {
             try manager.connection.startVPNTunnel()
             isConnecting = true
+            print("[VPN] VPN启动命令已发送")
         } catch {
             errorMessage = "启动VPN失败: \(error.localizedDescription)"
             isConnecting = false
+            print("[VPN] 启动VPN失败: \(error.localizedDescription)")
             
             if let neError = error as NSError?, neError.domain == NEVPNErrorDomain {
-                if neError.code == 1 {
+                print("[VPN] NEVPNErrorDomain 错误代码: \(neError.code)")
+                switch neError.code {
+                case 1:
                     errorMessage = "VPN配置无效，请重新安装应用"
                     createVPNConfiguration()
+                case 2:
+                    errorMessage = "用户拒绝了VPN配置请求"
+                case 3:
+                    errorMessage = "VPN配置已存在"
+                default:
+                    errorMessage = "VPN错误 (\(neError.code)): \(error.localizedDescription)"
                 }
             }
         }
@@ -97,5 +132,6 @@ class VPNManager: ObservableObject {
         vpnManager?.connection.stopVPNTunnel()
         isConnected = false
         isConnecting = false
+        print("[VPN] VPN已停止")
     }
 }

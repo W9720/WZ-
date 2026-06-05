@@ -5,6 +5,8 @@ import Foundation
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private var connections: [String: TCPConnection] = [:]
+    private var udpConnections: [String: NWConnection] = [:]
+    private let processingQueue = DispatchQueue(label: "com.warzone.packetProcessing", qos: .userInteractive, attributes: .concurrent)
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         NSLog("[PacketTunnel] 开始启动隧道...")
@@ -36,6 +38,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         NSLog("[PacketTunnel] 停止隧道，原因: \(reason.rawValue)")
         connections.values.forEach { $0.cancel() }
         connections.removeAll()
+        udpConnections.values.forEach { $0.cancel() }
+        udpConnections.removeAll()
         completionHandler()
     }
     
@@ -43,9 +47,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         packetFlow.readPackets { [weak self] packets, protocols in
             guard let self = self else { return }
             
-            for (index, packet) in packets.enumerated() {
-                let protocolNum = (protocols[index] as! NSNumber).int32Value
-                self.handlePacket(packet, protocolNumber: protocolNum)
+            self.processingQueue.async {
+                for (index, packet) in packets.enumerated() {
+                    let protocolNum = (protocols[index] as! NSNumber).int32Value
+                    self.handlePacket(packet, protocolNumber: protocolNum)
+                }
             }
             
             self.readPackets()
@@ -128,40 +134,49 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let payloadOffset = udpOffset + 8
         
         guard data.count >= payloadOffset else { return }
-        
         let payload = data.subdata(in: payloadOffset..<min(data.count, payloadOffset + length - 8))
         
         let host = NWEndpoint.Host(destIP)
         let port = NWEndpoint.Port(rawValue: destPort)!
+        let connectionKey = "\(destIP):\(destPort)"
         
-        let connection = NWConnection(host: host, port: port, using: .udp)
-        
-        connection.stateUpdateHandler = { [weak self] state in
-            guard let self = self else { return }
-            switch state {
-            case .ready:
-                connection.send(content: payload, completion: .idempotent)
-                connection.receiveMessage { [weak self] data, _, _, error in
-                    guard let self = self else { return }
-                    if let data = data, !data.isEmpty {
-                        self.sendUDPResponse(
-                            sourceIP: destIP,
-                            sourcePort: destPort,
-                            destIP: sourceIP,
-                            destPort: sourcePort,
-                            payload: data
-                        )
-                    }
-                    connection.cancel()
+        if let existingConnection = udpConnections[connectionKey] {
+            existingConnection.send(content: payload, completion: .idempotent)
+            scheduleUDPReceive(existingConnection, sourceIP: sourceIP, sourcePort: sourcePort)
+        } else {
+            let connection = NWConnection(host: host, port: port, using: .udp)
+            connection.stateUpdateHandler = { [weak self] state in
+                guard let self = self else { return }
+                switch state {
+                case .ready:
+                    connection.send(content: payload, completion: .idempotent)
+                    self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort)
+                case .failed, .cancelled:
+                    self.udpConnections.removeValue(forKey: connectionKey)
+                default:
+                    break
                 }
-            case .failed, .cancelled:
-                break
-            default:
-                break
+            }
+            udpConnections[connectionKey] = connection
+            connection.start(queue: .global(qos: .userInteractive))
+        }
+    }
+    
+    private func scheduleUDPReceive(_ connection: NWConnection, sourceIP: String, sourcePort: UInt16) {
+        connection.receiveMessage { [weak self] data, context, isComplete, error in
+            guard let self = self else { return }
+            if let data = data, !data.isEmpty {
+                let destIP = sourceIP
+                let destPort = sourcePort
+                let srcIP = connection.host.debugDescription.replacingOccurrences(of: "\"", with: "")
+                if let srcPortNum = UInt16(connection.port.debugDescription.replacingOccurrences(of: "\"", with: "")) {
+                    self.sendUDPResponse(sourceIP: srcIP, sourcePort: srcPortNum, destIP: destIP, destPort: destPort, payload: data)
+                }
+            }
+            if error == nil {
+                self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort)
             }
         }
-        
-        connection.start(queue: .global())
     }
     
     private func sendUDPResponse(sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16, payload: Data) {
@@ -183,13 +198,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         ipHeader.append(0x40)
         ipHeader.append(0x11)
         
-        var ipChecksum: UInt16 = 0
+        let ipChecksum = calculateChecksum(ipHeader)
         ipHeader.append(contentsOf: withUnsafeBytes(of: ipChecksum.bigEndian) { Data($0) })
         ipHeader.append(contentsOf: srcIPBytes)
         ipHeader.append(contentsOf: dstIPBytes)
-        
-        let calculatedIPChecksum = calculateChecksum(ipHeader)
-        ipHeader.replaceSubrange(10..<12, with: withUnsafeBytes(of: calculatedIPChecksum.bigEndian) { Data($0) })
         
         var udpHeader = Data()
         udpHeader.append(UInt8(sourcePort >> 8))
@@ -257,6 +269,7 @@ class TCPConnection {
     
     private var connection: NWConnection?
     private var clientSeq: UInt32 = 0
+    private var clientAckNum: UInt32 = 0
     private var serverSeq: UInt32 = 0
     private var isEstablished = false
     
@@ -275,6 +288,7 @@ class TCPConnection {
     
     func handlePacket(seqNum: UInt32, ackNum: UInt32, flags: UInt8, payload: Data) {
         clientSeq = seqNum
+        clientAckNum = ackNum
         
         if (flags & 0x02) != 0 {
             sendSYNACK(clientSeq: seqNum)
@@ -290,7 +304,7 @@ class TCPConnection {
         if !payload.isEmpty {
             requestBuffer.append(payload)
             
-            if !isTargetRequest {
+            if !isTargetRequest && (destPort == 80 || destPort == 8080) {
                 if let request = HTTPParser.shared.parseRequest(requestBuffer) {
                     isTargetRequest = LocationInjector.shared.isTargetRequest(host: request.host, path: request.path)
                     if isTargetRequest {
@@ -301,7 +315,8 @@ class TCPConnection {
             
             connection?.send(content: payload, completion: .contentProcessed { _ in })
             
-            let ackPacket = buildPacket(seqNum: serverSeq, ackNum: clientSeq + UInt32(payload.count), flags: 0x10, payload: Data())
+            let expectedAckNum = clientSeq + UInt32(payload.count)
+            let ackPacket = buildPacket(seqNum: serverSeq, ackNum: expectedAckNum, flags: 0x10, payload: Data())
             packetFlow.writePackets([ackPacket], withProtocols: [AF_INET as NSNumber])
         }
         
@@ -332,7 +347,7 @@ class TCPConnection {
             }
         }
         
-        connection?.start(queue: .global())
+        connection?.start(queue: .global(qos: .userInteractive))
     }
     
     private func receiveFromServer() {
@@ -398,7 +413,7 @@ class TCPConnection {
             let chunk = data.subdata(in: offset..<offset + size)
             
             let flags: UInt8 = 0x18
-            let packet = buildPacket(seqNum: serverSeq, ackNum: clientSeq + 1, flags: flags, payload: chunk)
+            let packet = buildPacket(seqNum: serverSeq, ackNum: clientAckNum, flags: flags, payload: chunk)
             packetFlow.writePackets([packet], withProtocols: [AF_INET as NSNumber])
             
             serverSeq += UInt32(size)
@@ -413,12 +428,12 @@ class TCPConnection {
     }
     
     private func sendFIN() {
-        let packet = buildPacket(seqNum: serverSeq, ackNum: clientSeq + 1, flags: 0x11, payload: Data())
+        let packet = buildPacket(seqNum: serverSeq, ackNum: clientAckNum, flags: 0x11, payload: Data())
         packetFlow.writePackets([packet], withProtocols: [AF_INET as NSNumber])
     }
     
     private func sendRST() {
-        let packet = buildPacket(seqNum: serverSeq, ackNum: clientSeq + 1, flags: 0x04, payload: Data())
+        let packet = buildPacket(seqNum: serverSeq, ackNum: clientAckNum, flags: 0x04, payload: Data())
         packetFlow.writePackets([packet], withProtocols: [AF_INET as NSNumber])
     }
     
@@ -441,13 +456,10 @@ class TCPConnection {
         ipHeader.append(0x40)
         ipHeader.append(0x06)
         
-        var ipChecksum: UInt16 = 0
-        ipHeader.append(contentsOf: withUnsafeBytes(of: ipChecksum.bigEndian) { Data($0) })
+        let calculatedIPChecksum = calculateChecksum(ipHeader)
+        ipHeader.append(contentsOf: withUnsafeBytes(of: calculatedIPChecksum.bigEndian) { Data($0) })
         ipHeader.append(contentsOf: srcIPBytes)
         ipHeader.append(contentsOf: dstIPBytes)
-        
-        let calculatedIPChecksum = calculateChecksum(ipHeader)
-        ipHeader.replaceSubrange(10..<12, with: withUnsafeBytes(of: calculatedIPChecksum.bigEndian) { Data($0) })
         
         var tcpHeader = Data()
         tcpHeader.append(UInt8(destPort >> 8))

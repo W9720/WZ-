@@ -11,7 +11,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "10.0.0.1")
         
-        let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.255"])
+        let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.0"])
         ipv4Settings.includedRoutes = [NEIPv4Route.default()]
         
         ipv4Settings.excludedRoutes = [
@@ -128,7 +128,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let payloadOffset = tcpOffset + dataOffset
         let payload = payloadOffset < packet.count ? packet.subdata(in: payloadOffset..<packet.count) : Data()
         
-        let connKey = "\(srcIP):\(srcPort)"
+        let connKey = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
         
         if (dstPort == 80 || dstPort == 8080) && !payload.isEmpty {
             if let request = String(data: payload, encoding: .utf8),
@@ -343,6 +343,21 @@ class UDPSession {
         let udpLen = UInt16(8 + data.count)
         withUnsafeBytes(of: udpLen.bigEndian) { udpHeader.replaceSubrange(4..<6, with: $0) }
         
+        var pseudoHeader = Data()
+        pseudoHeader.append(contentsOf: srcBytes)
+        pseudoHeader.append(contentsOf: dstBytes)
+        pseudoHeader.append(0x00)
+        pseudoHeader.append(0x11)
+        let udpLenBytes = withUnsafeBytes(of: udpLen.bigEndian) { Array($0) }
+        pseudoHeader.append(contentsOf: udpLenBytes)
+        
+        var checksumData = pseudoHeader
+        checksumData.append(udpHeader)
+        checksumData.append(data)
+        
+        let udpChecksum = calculateChecksum(checksumData)
+        withUnsafeBytes(of: udpChecksum.bigEndian) { udpHeader.replaceSubrange(6..<8, with: $0) }
+        
         response.append(ipHeader)
         response.append(udpHeader)
         response.append(data)
@@ -387,9 +402,30 @@ class TCPConnection {
     private let srcPort: UInt16
     private let dstIP: String
     private let dstPort: UInt16
+    
+    private var clientSeq: UInt32 = 0
+    private var clientAck: UInt32 = 0
+    private var serverSeq: UInt32 = 0
+    private var serverAck: UInt32 = 0
+    
     private var socket: Int32 = -1
     private var clientBuffer = Data()
     private var isTarget = false
+    private var state: TCPState = .closed
+    private var isServerConnected = false
+    
+    enum TCPState {
+        case closed
+        case listen
+        case synReceived
+        case established
+        case finWait1
+        case finWait2
+        case closeWait
+        case closing
+        case lastAck
+        case timeWait
+    }
     
     init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16) {
         self.packetFlow = packetFlow
@@ -397,50 +433,136 @@ class TCPConnection {
         self.srcPort = srcPort
         self.dstIP = dstIP
         self.dstPort = dstPort
+        self.serverSeq = arc4random()
     }
     
-    func processPacket(_ data: Data) {
-        let tcpOffset = Int((data[0] & 0x0F)) * 4
-        let flags = data[tcpOffset + 13]
-        let dataOffset = Int((data[tcpOffset + 12] >> 4) & 0x0F) * 4
-        let payloadOffset = tcpOffset + dataOffset
-        let payload = payloadOffset < data.count ? data.subdata(in: payloadOffset..<data.count) : Data()
+    func processPacket(_ packet: Data) {
+        guard packet.count >= 20 else { return }
         
-        if (flags & 0x02) != 0 {
-            sendSYNACK()
+        let ihl = Int((packet[0] & 0x0F)) * 4
+        guard packet.count >= ihl + 20 else { return }
+        
+        let tcpOffset = ihl
+        let dataOffset = Int((packet[tcpOffset + 12] >> 4) & 0x0F) * 4
+        let payloadOffset = tcpOffset + dataOffset
+        let payload = payloadOffset < packet.count ? packet.subdata(in: payloadOffset..<packet.count) : Data()
+        
+        let seqNum: UInt32 = packet.withUnsafeBytes { $0.load(fromByteOffset: tcpOffset + 4, as: UInt32.self) }.bigEndian
+        let ackNum: UInt32 = packet.withUnsafeBytes { $0.load(fromByteOffset: tcpOffset + 8, as: UInt32.self) }.bigEndian
+        let flags = packet[tcpOffset + 13]
+        
+        let syn = (flags & 0x02) != 0
+        let ack = (flags & 0x10) != 0
+        let fin = (flags & 0x01) != 0
+        let psh = (flags & 0x08) != 0
+        let rst = (flags & 0x04) != 0
+        
+        if rst {
+            close()
             return
         }
         
-        if (flags & 0x10) != 0 && socket == -1 {
-            connectToServer()
-        }
-        
-        if !payload.isEmpty {
-            clientBuffer.append(payload)
+        switch state {
+        case .closed, .listen:
+            if syn && !ack {
+                clientSeq = seqNum
+                state = .synReceived
+                sendSYNACK()
+            }
             
-            if !isTarget {
-                if let request = String(data: clientBuffer, encoding: .utf8),
-                   request.contains("apis.map.qq.com") && request.contains("/ws/geocoder/v1") {
-                    isTarget = true
+        case .synReceived:
+            if ack {
+                clientAck = ackNum
+                state = .established
+                if !payload.isEmpty {
+                    handleData(payload)
                 }
             }
             
-            if socket != -1 && !isTarget {
-                sendToServer(payload)
+        case .established:
+            clientSeq = seqNum
+            
+            if !payload.isEmpty {
+                handleData(payload)
+            }
+            
+            if fin {
+                state = .closeWait
+                sendACK()
+                closeServer()
+                sendFIN()
+            }
+            
+        case .closeWait:
+            if ack {
+                state = .lastAck
+            }
+            
+        case .lastAck:
+            if ack {
+                state = .closed
+            }
+            
+        case .finWait1:
+            if ack {
+                state = .finWait2
+            }
+            
+        case .finWait2:
+            if fin {
+                state = .timeWait
+                sendACK()
+            }
+            
+        default:
+            break
+        }
+    }
+    
+    private func handleData(_ data: Data) {
+        clientBuffer.append(data)
+        
+        if !isTarget {
+            if let request = String(data: clientBuffer, encoding: .utf8),
+               request.contains("apis.map.qq.com") && request.contains("/ws/geocoder/v1") {
+                isTarget = true
+                NSLog("[TCPConnection] 检测到目标请求")
             }
         }
         
-        if (flags & 0x01) != 0 {
-            close()
+        if isTarget {
+            sendFakeResponse()
+        } else {
+            if socket == -1 && !isServerConnected {
+                connectToServer()
+            } else if socket != -1 {
+                sendToServer(data)
+            }
         }
     }
     
     private func sendSYNACK() {
-        let packet = buildTCPPacket(flags: 0x12, payload: Data())
+        let flags: UInt8 = 0x12
+        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
+        packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
+        serverSeq += 1
+    }
+    
+    private func sendACK() {
+        let flags: UInt8 = 0x10
+        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
         packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
     }
     
+    private func sendFIN() {
+        let flags: UInt8 = 0x11
+        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
+        packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
+        serverSeq += 1
+    }
+    
     private func connectToServer() {
+        isServerConnected = true
         socket = Darwin.socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)
         
         var addr = sockaddr_in()
@@ -457,24 +579,22 @@ class TCPConnection {
             }
             
             if result == 0 {
-                self.onConnected()
+                DispatchQueue.main.async {
+                    self.onServerConnected()
+                }
             } else {
-                NSLog("[TCPConnection] 连接失败")
+                NSLog("[TCPConnection] 服务器连接失败")
                 self.close()
             }
         }
     }
     
-    private func onConnected() {
+    private func onServerConnected() {
         if clientBuffer.count > 0 {
-            if isTarget {
-                sendFakeResponse()
-            } else {
-                sendToServer(clientBuffer)
-                clientBuffer.removeAll()
-                startReceiveLoop()
-            }
+            sendToServer(clientBuffer)
+            clientBuffer.removeAll()
         }
+        startReceiveLoop()
     }
     
     private func sendToServer(_ data: Data) {
@@ -489,26 +609,30 @@ class TCPConnection {
         DispatchQueue.global().async { [weak self] in
             guard let self = self else { return }
             
-            var buffer = [UInt8](repeating: 0, count: 4096)
+            var buffer = [UInt8](repeating: 0, count: 8192)
             
             while self.socket != -1 {
                 let bytesRead = recv(self.socket, &buffer, buffer.count, 0)
                 
                 if bytesRead > 0 {
                     let response = Data(bytes: buffer, count: bytesRead)
-                    self.sendToClient(response)
+                    DispatchQueue.main.async {
+                        self.sendToClient(response)
+                    }
                 } else {
                     break
                 }
             }
             
-            self.close()
+            DispatchQueue.main.async {
+                self.closeServer()
+            }
         }
     }
     
     private func sendFakeResponse() {
         guard let location = LocationStore.shared.getSelectedLocation() else {
-            startReceiveLoop()
+            sendRST()
             return
         }
         
@@ -516,11 +640,22 @@ class TCPConnection {
         let fakeResponse = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nConnection: close\r\nContent-Length: \(fakeBody.count)\r\n\r\n\(fakeBody)"
         
         guard let responseData = fakeResponse.data(using: .utf8) else {
-            startReceiveLoop()
+            sendRST()
             return
         }
         
+        NSLog("[TCPConnection] 发送伪造响应: \(location.name)")
         sendToClient(responseData)
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            self?.sendFIN()
+        }
+    }
+    
+    private func sendRST() {
+        let flags: UInt8 = 0x04
+        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
+        packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
         close()
     }
     
@@ -532,15 +667,18 @@ class TCPConnection {
             let size = min(maxSize, data.count - offset)
             let chunk = data.subdata(in: offset..<offset + size)
             
-            let flags: UInt8 = offset + size >= data.count ? 0x11 : 0x18
-            let packet = buildTCPPacket(flags: flags, payload: chunk)
+            let isLast = offset + size >= data.count
+            let flags: UInt8 = isLast ? 0x18 : 0x18
+            
+            let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: chunk)
             packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
             
+            serverSeq += UInt32(chunk.count)
             offset += size
         }
     }
     
-    private func buildTCPPacket(flags: UInt8, payload: Data) -> Data {
+    private func buildTCPPacket(flags: UInt8, seqNum: UInt32, ackNum: UInt32, payload: Data) -> Data {
         var packet = Data()
         
         let srcBytes = parseIP(dstIP)
@@ -564,8 +702,8 @@ class TCPConnection {
         withUnsafeBytes(of: dstPort.bigEndian) { tcpHeader.replaceSubrange(0..<2, with: $0) }
         withUnsafeBytes(of: srcPort.bigEndian) { tcpHeader.replaceSubrange(2..<4, with: $0) }
         
-        let seqNum: UInt32 = arc4random() % 1000000
         withUnsafeBytes(of: seqNum.bigEndian) { tcpHeader.replaceSubrange(4..<8, with: $0) }
+        withUnsafeBytes(of: ackNum.bigEndian) { tcpHeader.replaceSubrange(8..<12, with: $0) }
         
         tcpHeader[12] = 0x50
         tcpHeader[13] = flags
@@ -619,11 +757,16 @@ class TCPConnection {
         return UInt16(~sum & 0xFFFF)
     }
     
-    func close() {
+    private func closeServer() {
         if socket != -1 {
             shutdown(socket, SHUT_RDWR)
             Darwin.close(socket)
             socket = -1
         }
+    }
+    
+    func close() {
+        closeServer()
+        state = .closed
     }
 }

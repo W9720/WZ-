@@ -26,6 +26,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             
             NSLog("[PacketTunnel] 网络配置设置成功，开始读取数据包...")
+            PacketHandler.shared.packetFlow = self.packetFlow
             self.isRunning = true
             self.readPackets()
             completionHandler(nil)
@@ -34,6 +35,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         NSLog("[PacketTunnel] 停止隧道，原因: \(reason.rawValue)")
+        PacketHandler.shared.packetFlow = nil
         isRunning = false
         completionHandler()
     }

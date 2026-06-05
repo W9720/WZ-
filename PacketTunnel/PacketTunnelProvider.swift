@@ -352,6 +352,10 @@ class UDPSession {
         ipHeader[1] = 0x00
         let ipLen = UInt16(20 + 8 + data.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
+        
+        let identification = UInt16.random(in: 1...65535)
+        withUnsafeBytes(of: identification.bigEndian) { ipHeader.replaceSubrange(4..<6, with: $0) }
+        
         ipHeader[6] = 0x40
         ipHeader[8] = 64
         ipHeader[9] = 0x11
@@ -730,6 +734,10 @@ class TCPConnection {
         ipHeader[1] = 0x00
         let ipLen = UInt16(20 + 20 + payload.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
+        
+        let identification = UInt16.random(in: 1...65535)
+        withUnsafeBytes(of: identification.bigEndian) { ipHeader.replaceSubrange(4..<6, with: $0) }
+        
         ipHeader[6] = 0x40
         ipHeader[8] = 64
         ipHeader[9] = 0x06

@@ -195,20 +195,20 @@ class UDPSession {
         ip[0] = 0x45
         ip[1] = 0x00
         let total = UInt16(20 + 8 + data.count)
-        total.bigEndian.withUnsafeBytes { ip.replaceSubrange(2..<4, with: $0) }
+        withUnsafeBytes(of: total.bigEndian) { ip.replaceSubrange(2..<4, with: $0) }
         ip[8] = 64
         ip[9] = 0x11
         ip.replaceSubrange(12..<16, with: src)
         ip.replaceSubrange(16..<20, with: dst)
         
         let ipCheck = checksum(ip)
-        ipCheck.bigEndian.withUnsafeBytes { ip.replaceSubrange(10..<12, with: $0) }
+        withUnsafeBytes(of: ipCheck.bigEndian) { ip.replaceSubrange(10..<12, with: $0) }
         
         var udp = Data(count:8)
-        dstPort.bigEndian.withUnsafeBytes { udp.replaceSubrange(0..<2, with: $0) }
-        srcPort.bigEndian.withUnsafeBytes { udp.replaceSubrange(2..<4, with: $0) }
+        withUnsafeBytes(of: dstPort.bigEndian) { udp.replaceSubrange(0..<2, with: $0) }
+        withUnsafeBytes(of: srcPort.bigEndian) { udp.replaceSubrange(2..<4, with: $0) }
         let udpLen = UInt16(8 + data.count)
-        udpLen.bigEndian.withUnsafeBytes { udp.replaceSubrange(4..<6, with: $0) }
+        withUnsafeBytes(of: udpLen.bigEndian) { udp.replaceSubrange(4..<6, with: $0) }
         
         var pkt = Data()
         pkt.append(ip)
@@ -294,14 +294,14 @@ class TCPConnection {
     func sendSynAck() {
         let ip = buildIP(src: parseIP(dstIP), dst: parseIP(srcIP), proto: 6, len: 40)
         var tcp = Data(count:20)
-        dstPort.bigEndian.withUnsafeBytes { tcp.replaceSubrange(0..<2, with: $0) }
-        srcPort.bigEndian.withUnsafeBytes { tcp.replaceSubrange(2..<4, with: $0) }
-        seq.bigEndian.withUnsafeBytes { tcp.replaceSubrange(4..<8, with: $0) }
-        ack.bigEndian.withUnsafeBytes { tcp.replaceSubrange(8..<12, with: $0) }
+        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
+        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
+        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
+        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
         tcp[12] = 0x50
         tcp[13] = 0x12
         let window: UInt16 = 65535
-        window.bigEndian.withUnsafeBytes { tcp.replaceSubrange(14..<16, with: $0) }
+        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
         
         var full = Data()
         full.append(ip)
@@ -341,14 +341,14 @@ class TCPConnection {
     func sendBack(_ data: Data) {
         let ip = buildIP(src: parseIP(dstIP), dst: parseIP(srcIP), proto: 6, len: 20+20+data.count)
         var tcp = Data(count:20)
-        dstPort.bigEndian.withUnsafeBytes { tcp.replaceSubrange(0..<2, with: $0) }
-        srcPort.bigEndian.withUnsafeBytes { tcp.replaceSubrange(2..<4, with: $0) }
-        seq.bigEndian.withUnsafeBytes { tcp.replaceSubrange(4..<8, with: $0) }
-        ack.bigEndian.withUnsafeBytes { tcp.replaceSubrange(8..<12, with: $0) }
+        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
+        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
+        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
+        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
         tcp[12] = 0x50
         tcp[13] = 0x18
         let window: UInt16 = 65535
-        window.bigEndian.withUnsafeBytes { tcp.replaceSubrange(14..<16, with: $0) }
+        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
         
         var pkt = Data()
         pkt.append(ip)
@@ -362,7 +362,7 @@ class TCPConnection {
         var ip = Data(count:20)
         ip[0] = 0x45
         ip[1] = 0x00
-        UInt16(len).bigEndian.withUnsafeBytes { ip.replaceSubrange(2..<4, with: $0) }
+        withUnsafeBytes(of: UInt16(len).bigEndian) { ip.replaceSubrange(2..<4, with: $0) }
         ip[8] = 64
         ip[9] = proto
         ip.replaceSubrange(12..<16, with: src)
@@ -377,7 +377,7 @@ class TCPConnection {
         }
         while sum>>16 != 0 { sum = (sum&0xffff)+(sum>>16) }
         let cs = ~UInt16(sum)
-        cs.bigEndian.withUnsafeBytes { ip.replaceSubrange(10..<12, with: $0) }
+        withUnsafeBytes(of: cs.bigEndian) { ip.replaceSubrange(10..<12, with: $0) }
         return ip
     }
     

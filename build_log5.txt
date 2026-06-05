@@ -1,0 +1,621 @@
+﻿ï»¿2026-06-04T06:47:59.5544660Z Current runner version: '2.334.0'
+2026-06-04T06:47:59.5557320Z ##[group]Runner Image Provisioner
+2026-06-04T06:47:59.5557800Z Hosted Compute Agent
+2026-06-04T06:47:59.5558160Z Version: 20260520.533
+2026-06-04T06:47:59.5558550Z Commit: 189110e25284a9812c124fd27b339e2fb4f2f9db
+2026-06-04T06:47:59.5559000Z Build Date: 2026-05-20T17:44:04Z
+2026-06-04T06:47:59.5559420Z Worker ID: {cd78738e-5350-4f13-9410-0b2048f0e7da}
+2026-06-04T06:47:59.5559870Z Azure Region: westus
+2026-06-04T06:47:59.5560220Z ##[endgroup]
+2026-06-04T06:47:59.5561020Z ##[group]Operating System
+2026-06-04T06:47:59.5561390Z macOS
+2026-06-04T06:47:59.5561690Z 14.8.7
+2026-06-04T06:47:59.5561990Z 23J520
+2026-06-04T06:47:59.5562300Z ##[endgroup]
+2026-06-04T06:47:59.5562630Z ##[group]Runner Image
+2026-06-04T06:47:59.5562990Z Image: macos-14-arm64
+2026-06-04T06:47:59.5563340Z Version: 20260525.0091.1
+2026-06-04T06:47:59.5564080Z Included Software: https://github.com/actions/runner-images/blob/macos-14-arm64/20260525.0091/images/macos/macos-14-arm64-Readme.md
+2026-06-04T06:47:59.5565060Z Image Release: https://github.com/actions/runner-images/releases/tag/macos-14-arm64%2F20260525.0091
+2026-06-04T06:47:59.5565680Z ##[endgroup]
+2026-06-04T06:47:59.5566400Z ##[group]GITHUB_TOKEN Permissions
+2026-06-04T06:47:59.5567330Z Contents: read
+2026-06-04T06:47:59.5567690Z Metadata: read
+2026-06-04T06:47:59.5568050Z Packages: read
+2026-06-04T06:47:59.5568410Z ##[endgroup]
+2026-06-04T06:47:59.5569740Z Secret source: Actions
+2026-06-04T06:47:59.5570170Z Prepare workflow directory
+2026-06-04T06:47:59.5813590Z Prepare all required actions
+2026-06-04T06:47:59.5838260Z Getting action download info
+2026-06-04T06:48:00.0771060Z Download action repository 'actions/checkout@v4' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-06-04T06:48:00.4484900Z Download action repository 'maxim-lobanov/setup-xcode@v1' (SHA:ed7a3b1fda3918c0306d1b724322adc0b8cc0a90)
+2026-06-04T06:48:01.1076340Z Download action repository 'actions/upload-artifact@v4' (SHA:ea165f8d65b6e75b540449e92b4886f43607fa02)
+2026-06-04T06:48:01.3133350Z Complete job name: Build iOS App
+2026-06-04T06:48:01.3515280Z ##[group]Run actions/checkout@v4
+2026-06-04T06:48:01.3515820Z with:
+2026-06-04T06:48:01.3516290Z   repository: W9720/WZ-
+2026-06-04T06:48:01.3519050Z   token: ***
+2026-06-04T06:48:01.3519340Z   ssh-strict: true
+2026-06-04T06:48:01.3519650Z   ssh-user: git
+2026-06-04T06:48:01.3519960Z   persist-credentials: true
+2026-06-04T06:48:01.3520290Z   clean: true
+2026-06-04T06:48:01.3520590Z   sparse-checkout-cone-mode: true
+2026-06-04T06:48:01.3520940Z   fetch-depth: 1
+2026-06-04T06:48:01.3521240Z   fetch-tags: false
+2026-06-04T06:48:01.3521550Z   show-progress: true
+2026-06-04T06:48:01.3521860Z   lfs: false
+2026-06-04T06:48:01.3522150Z   submodules: false
+2026-06-04T06:48:01.3522460Z   set-safe-directory: true
+2026-06-04T06:48:01.3522880Z ##[endgroup]
+2026-06-04T06:48:01.6333900Z Syncing repository: W9720/WZ-
+2026-06-04T06:48:01.6335200Z ##[group]Getting Git version info
+2026-06-04T06:48:01.6335730Z Working directory is '/Users/runner/work/WZ-/WZ-'
+2026-06-04T06:48:01.6336560Z [command]/opt/homebrew/bin/git version
+2026-06-04T06:48:01.6575320Z git version 2.54.0
+2026-06-04T06:48:01.6601080Z ##[endgroup]
+2026-06-04T06:48:01.6613150Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/81f6f6d0-f002-4544-9dc2-187d7b99ab30/.gitconfig'
+2026-06-04T06:48:01.6619820Z Temporarily overriding HOME='/Users/runner/work/_temp/81f6f6d0-f002-4544-9dc2-187d7b99ab30' before making global git config changes
+2026-06-04T06:48:01.6620790Z Adding repository directory to the temporary git global config as a safe directory
+2026-06-04T06:48:01.6624210Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:01.6708510Z Deleting the contents of '/Users/runner/work/WZ-/WZ-'
+2026-06-04T06:48:01.6711250Z ##[group]Initializing the repository
+2026-06-04T06:48:01.6715660Z [command]/opt/homebrew/bin/git init /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:01.6899230Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-06-04T06:48:01.6900340Z hint: will change to "main" in Git 3.0. To configure the initial branch name
+2026-06-04T06:48:01.6901170Z hint: to use in all of your new repositories, which will suppress this warning,
+2026-06-04T06:48:01.6901830Z hint: call:
+2026-06-04T06:48:01.6902300Z hint:
+2026-06-04T06:48:01.6903160Z hint: 	git config --global init.defaultBranch <name>
+2026-06-04T06:48:01.6903830Z hint:
+2026-06-04T06:48:01.6904370Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-06-04T06:48:01.6905460Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-06-04T06:48:01.6906390Z hint:
+2026-06-04T06:48:01.6906910Z hint: 	git branch -m <name>
+2026-06-04T06:48:01.6907400Z hint:
+2026-06-04T06:48:01.6907930Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-06-04T06:48:01.6908740Z Initialized empty Git repository in /Users/runner/work/WZ-/WZ-/.git/
+2026-06-04T06:48:01.6911100Z [command]/opt/homebrew/bin/git remote add origin https://github.com/W9720/WZ-
+2026-06-04T06:48:01.6966310Z ##[endgroup]
+2026-06-04T06:48:01.6967270Z ##[group]Disabling automatic garbage collection
+2026-06-04T06:48:01.6969480Z [command]/opt/homebrew/bin/git config --local gc.auto 0
+2026-06-04T06:48:01.7020190Z ##[endgroup]
+2026-06-04T06:48:01.7030030Z ##[group]Setting up auth
+2026-06-04T06:48:01.7032640Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-06-04T06:48:01.7065440Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-06-04T06:48:01.7840250Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-06-04T06:48:01.7889920Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-06-04T06:48:01.8385610Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-06-04T06:48:01.8430630Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-06-04T06:48:01.9005200Z [command]/opt/homebrew/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-06-04T06:48:01.9006940Z ##[endgroup]
+2026-06-04T06:48:01.9007770Z ##[group]Fetching the repository
+2026-06-04T06:48:01.9008940Z [command]/opt/homebrew/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +f74156ee6b99ef51594eb3311035809744dc8172:refs/remotes/origin/main
+2026-06-04T06:48:02.5659080Z From https://github.com/W9720/WZ-
+2026-06-04T06:48:02.5662630Z  * [new ref]         f74156ee6b99ef51594eb3311035809744dc8172 -> origin/main
+2026-06-04T06:48:02.5753980Z ##[endgroup]
+2026-06-04T06:48:02.5781650Z ##[group]Determining the checkout info
+2026-06-04T06:48:02.5813310Z ##[endgroup]
+2026-06-04T06:48:02.5828770Z [command]/opt/homebrew/bin/git sparse-checkout disable
+2026-06-04T06:48:02.5837950Z [command]/opt/homebrew/bin/git config --local --unset-all extensions.worktreeConfig
+2026-06-04T06:48:02.5840030Z ##[group]Checking out the ref
+2026-06-04T06:48:02.5840930Z [command]/opt/homebrew/bin/git checkout --progress --force -B main refs/remotes/origin/main
+2026-06-04T06:48:02.5942040Z Switched to a new branch 'main'
+2026-06-04T06:48:02.6008880Z branch 'main' set up to track 'origin/main'.
+2026-06-04T06:48:02.6022840Z ##[endgroup]
+2026-06-04T06:48:02.6041090Z [command]/opt/homebrew/bin/git log -1 --format=%H
+2026-06-04T06:48:02.6068240Z f74156ee6b99ef51594eb3311035809744dc8172
+2026-06-04T06:48:02.6240820Z ##[group]Run maxim-lobanov/setup-xcode@v1
+2026-06-04T06:48:02.6241730Z with:
+2026-06-04T06:48:02.6242290Z   xcode-version: 15.4
+2026-06-04T06:48:02.6243150Z ##[endgroup]
+2026-06-04T06:48:02.8878780Z Switching Xcode to version '15.4'...
+2026-06-04T06:48:02.9556340Z Xcode is set to 15.4.0 (15F31d)
+2026-06-04T06:48:02.9678160Z ##[group]Run xcodebuild -version
+2026-06-04T06:48:02.9679120Z [36;1mxcodebuild -version[0m
+2026-06-04T06:48:02.9679800Z [36;1mls -la[0m
+2026-06-04T06:48:02.9680600Z [36;1mxcodebuild -list -project WarZoneChanger.xcodeproj[0m
+2026-06-04T06:48:02.9738140Z shell: /bin/bash -e {0}
+2026-06-04T06:48:02.9738800Z env:
+2026-06-04T06:48:02.9739390Z   MD_APPLE_SDK_ROOT: /Applications/Xcode_15.4.app
+2026-06-04T06:48:02.9740180Z ##[endgroup]
+2026-06-04T06:48:03.1318240Z Xcode 15.4
+2026-06-04T06:48:03.1319450Z Build version 15F31d
+2026-06-04T06:48:03.1358980Z total 0
+2026-06-04T06:48:03.1359720Z drwxr-xr-x   8 runner  staff  256 Jun  4 06:48 .
+2026-06-04T06:48:03.1360730Z drwxr-xr-x   3 runner  staff   96 Jun  4 06:47 ..
+2026-06-04T06:48:03.1361700Z drwxr-xr-x  14 runner  staff  448 Jun  4 06:48 .git
+2026-06-04T06:48:03.1362750Z drwxr-xr-x   3 runner  staff   96 Jun  4 06:48 .github
+2026-06-04T06:48:03.1363840Z -rw-r--r--   1 runner  staff    0 Jun  4 06:48 .gitignore
+2026-06-04T06:48:03.1364970Z drwxr-xr-x  10 runner  staff  320 Jun  4 06:48 PacketTunnel
+2026-06-04T06:48:03.1366050Z drwxr-xr-x  10 runner  staff  320 Jun  4 06:48 WarZoneChanger
+2026-06-04T06:48:03.1367220Z drwxr-xr-x   3 runner  staff   96 Jun  4 06:48 WarZoneChanger.xcodeproj
+2026-06-04T06:48:04.2976080Z Command line invocation:
+2026-06-04T06:48:04.3037020Z     /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/xcodebuild -list -project WarZoneChanger.xcodeproj
+2026-06-04T06:48:04.3085940Z 
+2026-06-04T06:48:04.3269640Z User defaults from command line:
+2026-06-04T06:48:04.3446930Z     IDEPackageSupportUseBuiltinSCM = YES
+2026-06-04T06:48:04.3453120Z 
+2026-06-04T06:48:11.4575430Z Information about project "WarZoneChanger":
+2026-06-04T06:48:11.4583290Z     Targets:
+2026-06-04T06:48:11.4586250Z         WarZoneChanger
+2026-06-04T06:48:11.4587200Z         PacketTunnel
+2026-06-04T06:48:11.4589060Z 
+2026-06-04T06:48:11.4592500Z     Build Configurations:
+2026-06-04T06:48:11.4593860Z         Debug
+2026-06-04T06:48:11.4594920Z         Release
+2026-06-04T06:48:11.4595520Z 
+2026-06-04T06:48:11.4597120Z     If no build configuration is specified and -scheme is not passed then "Release" is used.
+2026-06-04T06:48:11.4597800Z 
+2026-06-04T06:48:11.4598000Z     Schemes:
+2026-06-04T06:48:11.4598520Z         PacketTunnel
+2026-06-04T06:48:11.4599220Z         WarZoneChanger
+2026-06-04T06:48:11.4599550Z 
+2026-06-04T06:48:11.4799200Z ##[group]Run xcodebuild build \
+2026-06-04T06:48:11.4799750Z [36;1mxcodebuild build \[0m
+2026-06-04T06:48:11.4800130Z [36;1m  -project WarZoneChanger.xcodeproj \[0m
+2026-06-04T06:48:11.4800810Z [36;1m  -target PacketTunnel \[0m
+2026-06-04T06:48:11.4801200Z [36;1m  -configuration Release \[0m
+2026-06-04T06:48:11.4801710Z [36;1m  -sdk iphoneos \[0m
+2026-06-04T06:48:11.4802030Z [36;1m  -arch arm64 \[0m
+2026-06-04T06:48:11.4802540Z [36;1m  CONFIGURATION_BUILD_DIR=$(pwd)/build \[0m
+2026-06-04T06:48:11.4803000Z [36;1m  CODE_SIGNING_ALLOWED=NO \[0m
+2026-06-04T06:48:11.4803410Z [36;1m  CODE_SIGNING_REQUIRED=NO[0m
+2026-06-04T06:48:11.4955590Z shell: /bin/bash -e {0}
+2026-06-04T06:48:11.4955990Z env:
+2026-06-04T06:48:11.4956560Z   MD_APPLE_SDK_ROOT: /Applications/Xcode_15.4.app
+2026-06-04T06:48:11.4956990Z ##[endgroup]
+2026-06-04T06:48:12.3953850Z Command line invocation:
+2026-06-04T06:48:12.4018030Z     /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/xcodebuild build -project WarZoneChanger.xcodeproj -target PacketTunnel -configuration Release -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=/Users/runner/work/WZ-/WZ-/build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+2026-06-04T06:48:12.4041380Z 
+2026-06-04T06:48:12.4041940Z User defaults from command line:
+2026-06-04T06:48:12.4043200Z     IDEPackageSupportUseBuiltinSCM = YES
+2026-06-04T06:48:12.4043860Z 
+2026-06-04T06:48:12.4044260Z Build settings from command line:
+2026-06-04T06:48:12.4082470Z     ARCHS = arm64
+2026-06-04T06:48:12.4088580Z     CODE_SIGNING_ALLOWED = NO
+2026-06-04T06:48:12.4089030Z     CODE_SIGNING_REQUIRED = NO
+2026-06-04T06:48:12.4089350Z     CONFIGURATION_BUILD_DIR = /Users/runner/work/WZ-/WZ-/build
+2026-06-04T06:48:12.4089750Z     SDKROOT = iphoneos17.5
+2026-06-04T06:48:12.4089870Z 
+2026-06-04T06:48:12.8530360Z ComputeTargetDependencyGraph
+2026-06-04T06:48:12.8772460Z note: Building targets in dependency order
+2026-06-04T06:48:12.8773810Z note: Target dependency graph (1 target)
+2026-06-04T06:48:12.8774440Z     Target 'PacketTunnel' in project 'WarZoneChanger' (no dependencies)
+2026-06-04T06:48:12.8787100Z 
+2026-06-04T06:48:12.8894560Z GatherProvisioningInputs
+2026-06-04T06:48:12.8895260Z 
+2026-06-04T06:48:12.8895450Z CreateBuildDescription
+2026-06-04T06:48:12.8925280Z 
+2026-06-04T06:48:12.8925880Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -v
+2026-06-04T06:48:13.3839280Z 
+2026-06-04T06:48:13.3851730Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -x c -c /dev/null
+2026-06-04T06:48:13.6199030Z 
+2026-06-04T06:48:13.6293630Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+2026-06-04T06:48:13.7706800Z 
+2026-06-04T06:48:13.7888140Z Build description signature: aecdaae39b6aacd100ec16d8736768f6
+2026-06-04T06:48:13.7889290Z Build description path: /Users/runner/work/WZ-/WZ-/build/XCBuildData/aecdaae39b6aacd100ec16d8736768f6.xcbuilddata
+2026-06-04T06:48:13.7965020Z CreateBuildDirectory /Users/runner/work/WZ-/WZ-/build
+2026-06-04T06:48:13.7967180Z     cd /Users/runner/work/WZ-/WZ-/WarZoneChanger.xcodeproj
+2026-06-04T06:48:13.7968110Z     builtin-create-build-directory /Users/runner/work/WZ-/WZ-/build
+2026-06-04T06:48:13.8072370Z 
+2026-06-04T06:48:13.8174740Z ClangStatCache /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache
+2026-06-04T06:48:13.8274280Z     cd /Users/runner/work/WZ-/WZ-/WarZoneChanger.xcodeproj
+2026-06-04T06:48:13.8318370Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -o /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache
+2026-06-04T06:48:15.1858780Z 
+2026-06-04T06:48:15.1860050Z CreateBuildDirectory /Users/runner/work/WZ-/WZ-/build/EagerLinkingTBDs/Release-iphoneos
+2026-06-04T06:48:15.1860730Z     cd /Users/runner/work/WZ-/WZ-/WarZoneChanger.xcodeproj
+2026-06-04T06:48:15.1862320Z     builtin-create-build-directory /Users/runner/work/WZ-/WZ-/build/EagerLinkingTBDs/Release-iphoneos
+2026-06-04T06:48:15.1862820Z 
+2026-06-04T06:48:15.1863120Z MkDir /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1863710Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1864110Z     /bin/mkdir -p /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex
+2026-06-04T06:48:15.1864410Z 
+2026-06-04T06:48:15.1865010Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/all-product-headers.yaml (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1865930Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1866480Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/all-product-headers.yaml
+2026-06-04T06:48:15.1867440Z 
+2026-06-04T06:48:15.1868130Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel.hmap (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1868840Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1869380Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel.hmap
+2026-06-04T06:48:15.1869880Z 
+2026-06-04T06:48:15.1870470Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1871210Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1871850Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap
+2026-06-04T06:48:15.1872450Z 
+2026-06-04T06:48:15.1873090Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1874040Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1874820Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap
+2026-06-04T06:48:15.1875370Z 
+2026-06-04T06:48:15.1875910Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1876890Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1878130Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap
+2026-06-04T06:48:15.1878770Z 
+2026-06-04T06:48:15.1879400Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1880230Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1880920Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap
+2026-06-04T06:48:15.1881360Z 
+2026-06-04T06:48:15.1882330Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-non-framework-target-headers.hmap (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1883660Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1884300Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-non-framework-target-headers.hmap
+2026-06-04T06:48:15.1884850Z 
+2026-06-04T06:48:15.1885740Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.LinkFileList (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1886600Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1887180Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.LinkFileList
+2026-06-04T06:48:15.1887710Z 
+2026-06-04T06:48:15.1888390Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1889300Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1890210Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json
+2026-06-04T06:48:15.1891350Z 
+2026-06-04T06:48:15.1891980Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftFileList (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1892800Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1893430Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftFileList
+2026-06-04T06:48:15.1893890Z 
+2026-06-04T06:48:15.1894540Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-OutputFileMap.json (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1895380Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1895930Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-OutputFileMap.json
+2026-06-04T06:48:15.1896420Z 
+2026-06-04T06:48:15.1896910Z ProcessInfoPlistFile /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/Info.plist /Users/runner/work/WZ-/WZ-/PacketTunnel/Info.plist (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1897550Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1898440Z     builtin-infoPlistUtility /Users/runner/work/WZ-/WZ-/PacketTunnel/Info.plist -producttype com.apple.product-type.app-extension -expandbuildsettings -format binary -platform iphoneos -requiredArchitecture arm64 -o /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/Info.plist
+2026-06-04T06:48:15.1899290Z 
+2026-06-04T06:48:15.1899650Z SwiftDriver PacketTunnel normal arm64 com.apple.xcode.tools.swift.compiler (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.1900120Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.1909670Z     builtin-SwiftDriver -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name PacketTunnel -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftFileList -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -enable-bare-slash-regex -g -Xfrontend -serialize-debugging-options -application-extension -swift-version 5 -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-Swift.h -working-directory /Users/runner/work/WZ-/WZ- -no-emit-module-separately-wmo
+2026-06-04T06:48:15.2249380Z 
+2026-06-04T06:48:15.2260880Z SwiftDriver\ Compilation PacketTunnel normal arm64 com.apple.xcode.tools.swift.compiler (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.2261510Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.2292350Z     builtin-Swift-Compilation -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name PacketTunnel -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftFileList -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -enable-bare-slash-regex -g -Xfrontend -serialize-debugging-options -application-extension -swift-version 5 -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-Swift.h -working-directory /Users/runner/work/WZ-/WZ- -no-emit-module-separately-wmo
+2026-06-04T06:48:15.2302320Z 
+2026-06-04T06:48:15.2303920Z SwiftCompile normal arm64 Compiling\ PacketTunnelProvider.swift,\ LocationStore.swift,\ LocationInjector.swift,\ PacketHandler.swift,\ TCPConnection.swift,\ HTTPParser.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/PacketTunnelProvider.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/LocationStore.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/LocationInjector.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/PacketHandler.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/TCPConnection.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/HTTPParser.swift (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.2305660Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.2323080Z     builtin-swiftTaskExecution -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/runner/work/WZ-/WZ-/PacketTunnel/PacketTunnelProvider.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/LocationStore.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/LocationInjector.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/PacketHandler.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/TCPConnection.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/HTTPParser.swift -supplementary-output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/supplementaryOutputs-1 -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64 -target arm64-apple-ios15.0 -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -no-color-diagnostics -application-extension -g -swift-version 5 -enforce-exclusivity\=checked -O -serialize-debugging-options -const-gather-protocols-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/WZ-/WZ- -resource-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources -module-name PacketTunnel -frontend-parseable-output -disable-clang-spi -target-sdk-version 17.5 -target-sdk-name iphoneos17.5 -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -enable-default-cmo -num-threads 3 -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnelProvider.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationStore.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationInjector.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketHandler.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/TCPConnection.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/HTTPParser.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnelProvider.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationStore.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationInjector.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketHandler.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/TCPConnection.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/HTTPParser.o
+2026-06-04T06:48:15.2889650Z 
+2026-06-04T06:48:15.2890080Z CompileSwift normal arm64 (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:15.2890460Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:15.2908740Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -c /Users/runner/work/WZ-/WZ-/PacketTunnel/PacketTunnelProvider.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/LocationStore.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/LocationInjector.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/PacketHandler.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/TCPConnection.swift /Users/runner/work/WZ-/WZ-/PacketTunnel/HTTPParser.swift -supplementary-output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/supplementaryOutputs-1 -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64 -target arm64-apple-ios15.0 -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -no-color-diagnostics -application-extension -g -swift-version 5 -enforce-exclusivity\=checked -O -serialize-debugging-options -const-gather-protocols-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/WZ-/WZ- -resource-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources -module-name PacketTunnel -frontend-parseable-output -disable-clang-spi -target-sdk-version 17.5 -target-sdk-name iphoneos17.5 -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -enable-default-cmo -num-threads 3 -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnelProvider.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationStore.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationInjector.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketHandler.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/TCPConnection.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/HTTPParser.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnelProvider.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationStore.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/LocationInjector.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketHandler.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/TCPConnection.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/HTTPParser.o
+2026-06-04T06:48:18.4657420Z /Users/runner/work/WZ-/WZ-/PacketTunnel/TCPConnection.swift:67:79: warning: variable 'self' was written to, but never read
+2026-06-04T06:48:18.4659310Z         connection?.send(content: data, completion: .contentProcessed { [weak self] error in
+2026-06-04T06:48:18.4660500Z                                                                               ^
+2026-06-04T06:48:18.4661360Z 
+2026-06-04T06:48:18.4663490Z SwiftDriverJobDiscovery normal arm64 Compiling PacketTunnelProvider.swift, LocationStore.swift, LocationInjector.swift, PacketHandler.swift, TCPConnection.swift, HTTPParser.swift (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4665080Z 
+2026-06-04T06:48:18.4665780Z SwiftDriver\ Compilation\ Requirements PacketTunnel normal arm64 com.apple.xcode.tools.swift.compiler (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4667500Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4683560Z     builtin-Swift-Compilation-Requirements -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name PacketTunnel -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftFileList -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -enable-bare-slash-regex -g -Xfrontend -serialize-debugging-options -application-extension -swift-version 5 -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/PacketTunnel-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-Swift.h -working-directory /Users/runner/work/WZ-/WZ- -no-emit-module-separately-wmo
+2026-06-04T06:48:18.4695120Z 
+2026-06-04T06:48:18.4711310Z SwiftMergeGeneratedHeaders /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/PacketTunnel-Swift.h /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-Swift.h (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4713010Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4715690Z     builtin-swiftHeaderTool -arch arm64 /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel-Swift.h -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/DerivedSources/PacketTunnel-Swift.h
+2026-06-04T06:48:18.4717000Z 
+2026-06-04T06:48:18.4718360Z Copy /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/arm64-apple-ios.swiftmodule /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftmodule (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4719390Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4720530Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftmodule /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/arm64-apple-ios.swiftmodule
+2026-06-04T06:48:18.4721880Z 
+2026-06-04T06:48:18.4722630Z Copy /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/arm64-apple-ios.swiftdoc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftdoc (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4723620Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4724660Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftdoc /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/arm64-apple-ios.swiftdoc
+2026-06-04T06:48:18.4725630Z 
+2026-06-04T06:48:18.4726370Z Copy /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/arm64-apple-ios.abi.json /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.abi.json (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4727730Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4728760Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.abi.json /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/arm64-apple-ios.abi.json
+2026-06-04T06:48:18.4729720Z 
+2026-06-04T06:48:18.4730650Z Copy /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftsourceinfo (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4731660Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4732840Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftsourceinfo /Users/runner/work/WZ-/WZ-/build/PacketTunnel.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo
+2026-06-04T06:48:18.4733870Z 
+2026-06-04T06:48:18.4734270Z Ld /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/PacketTunnel normal (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.4734870Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.4739580Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios15.0 -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -Os -L/Users/runner/work/WZ-/WZ-/build/EagerLinkingTBDs/Release-iphoneos -L/Users/runner/work/WZ-/WZ-/build -F/Users/runner/work/WZ-/WZ-/build/EagerLinkingTBDs/Release-iphoneos -F/Users/runner/work/WZ-/WZ-/build -filelist /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.LinkFileList -Xlinker -rpath -Xlinker @executable_path/Frameworks -Xlinker -rpath -Xlinker @executable_path/../../Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_lto.o -e _NSExtensionMain -fapplication-extension -fobjc-link-runtime -L/Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.swiftmodule -Xlinker -dependency_info -Xlinker /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_dependency_info.dat -o /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/PacketTunnel
+2026-06-04T06:48:18.5938610Z 
+2026-06-04T06:48:18.5946120Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftConstValuesFileList (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.5948230Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.5949340Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftConstValuesFileList
+2026-06-04T06:48:18.5950770Z 
+2026-06-04T06:48:18.5951550Z GenerateDSYMFile /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex.dSYM /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/PacketTunnel (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.5952470Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.5953250Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/PacketTunnel -o /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex.dSYM
+2026-06-04T06:48:18.7114390Z 
+2026-06-04T06:48:18.7114910Z ExtractAppIntentsMetadata (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.7115450Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.7119760Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --output /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex --toolchain-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name PacketTunnel --sdk-root /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk --xcode-version 15F31d --platform-family iOS --deployment-target 15.0 --target-triple arm64-apple-ios15.0 --binary-file /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/PacketTunnel --dependency-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel_dependency_info.dat --stringsdata-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftFileList --swift-const-vals-list /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/Objects-normal/arm64/PacketTunnel.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing
+2026-06-04T06:48:18.7124590Z note: Metadata extraction skipped. No AppIntents.framework dependency found. (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.7125010Z 
+2026-06-04T06:48:18.7125320Z AppIntentsSSUTraining (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.7125720Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.7127700Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/Info.plist --temp-dir-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/PacketTunnel.build/ssu --bundle-id com.warzone.changer.PacketTunnel --product-path /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex --extracted-metadata-path /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex/Metadata.appintents --archive-ssu-assets
+2026-06-04T06:48:18.7129660Z 2026-06-04 06:48:18.672 appintentsnltrainingprocessor[12254:34355] Parsing options for appintentsnltrainingprocessor
+2026-06-04T06:48:18.7130240Z 2026-06-04 06:48:18.674 appintentsnltrainingprocessor[12254:34355] No AppShortcuts found - Skipping.
+2026-06-04T06:48:18.7130540Z 
+2026-06-04T06:48:18.7130900Z RegisterExecutionPolicyException /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.7131440Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.7131800Z     builtin-RegisterExecutionPolicyException /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex
+2026-06-04T06:48:18.7199370Z 
+2026-06-04T06:48:18.7201080Z Touch /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex (in target 'PacketTunnel' from project 'WarZoneChanger')
+2026-06-04T06:48:18.7201550Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:18.7201890Z     /usr/bin/touch -c /Users/runner/work/WZ-/WZ-/build/PacketTunnel.appex
+2026-06-04T06:48:18.7219170Z 
+2026-06-04T06:48:18.7324250Z ** BUILD SUCCEEDED **
+2026-06-04T06:48:18.7325240Z 
+2026-06-04T06:48:18.7451250Z ##[group]Run xcodebuild build \
+2026-06-04T06:48:18.7451510Z [36;1mxcodebuild build \[0m
+2026-06-04T06:48:18.7451740Z [36;1m  -project WarZoneChanger.xcodeproj \[0m
+2026-06-04T06:48:18.7452060Z [36;1m  -target WarZoneChanger \[0m
+2026-06-04T06:48:18.7452260Z [36;1m  -configuration Release \[0m
+2026-06-04T06:48:18.7452520Z [36;1m  -sdk iphoneos \[0m
+2026-06-04T06:48:18.7452940Z [36;1m  -arch arm64 \[0m
+2026-06-04T06:48:18.7453200Z [36;1m  CONFIGURATION_BUILD_DIR=$(pwd)/build \[0m
+2026-06-04T06:48:18.7453450Z [36;1m  CODE_SIGNING_ALLOWED=NO \[0m
+2026-06-04T06:48:18.7453730Z [36;1m  CODE_SIGNING_REQUIRED=NO[0m
+2026-06-04T06:48:18.7612140Z shell: /bin/bash -e {0}
+2026-06-04T06:48:18.7612320Z env:
+2026-06-04T06:48:18.7612490Z   MD_APPLE_SDK_ROOT: /Applications/Xcode_15.4.app
+2026-06-04T06:48:18.7612740Z ##[endgroup]
+2026-06-04T06:48:19.4259920Z Command line invocation:
+2026-06-04T06:48:19.4264710Z     /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/xcodebuild build -project WarZoneChanger.xcodeproj -target WarZoneChanger -configuration Release -sdk iphoneos -arch arm64 CONFIGURATION_BUILD_DIR=/Users/runner/work/WZ-/WZ-/build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO
+2026-06-04T06:48:19.4270770Z 
+2026-06-04T06:48:19.4271080Z User defaults from command line:
+2026-06-04T06:48:19.4271610Z     IDEPackageSupportUseBuiltinSCM = YES
+2026-06-04T06:48:19.4274240Z 
+2026-06-04T06:48:19.4280270Z Build settings from command line:
+2026-06-04T06:48:19.4282160Z     ARCHS = arm64
+2026-06-04T06:48:19.4282440Z     CODE_SIGNING_ALLOWED = NO
+2026-06-04T06:48:19.4282760Z     CODE_SIGNING_REQUIRED = NO
+2026-06-04T06:48:19.4283110Z     CONFIGURATION_BUILD_DIR = /Users/runner/work/WZ-/WZ-/build
+2026-06-04T06:48:19.4283520Z     SDKROOT = iphoneos17.5
+2026-06-04T06:48:19.4283810Z 
+2026-06-04T06:48:19.7991140Z ComputeTargetDependencyGraph
+2026-06-04T06:48:19.8162280Z note: Building targets in dependency order
+2026-06-04T06:48:19.8194820Z note: Target dependency graph (1 target)
+2026-06-04T06:48:19.8195880Z     Target 'WarZoneChanger' in project 'WarZoneChanger' (no dependencies)
+2026-06-04T06:48:19.8196290Z 
+2026-06-04T06:48:19.8196440Z GatherProvisioningInputs
+2026-06-04T06:48:19.8196670Z 
+2026-06-04T06:48:19.8196820Z CreateBuildDescription
+2026-06-04T06:48:19.8197040Z 
+2026-06-04T06:48:19.8197940Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/actool --print-asset-tag-combinations --output-format xml1 /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets /Users/runner/work/WZ-/WZ-/WarZoneChanger/Preview Assets.xcassets
+2026-06-04T06:48:21.1186270Z 
+2026-06-04T06:48:21.1290220Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -v -E -dM -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -x c -c /dev/null
+2026-06-04T06:48:21.1407410Z 
+2026-06-04T06:48:21.1513960Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/actool --version --output-format xml1
+2026-06-04T06:48:21.1624910Z 
+2026-06-04T06:48:21.1726810Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -v
+2026-06-04T06:48:21.2285750Z 
+2026-06-04T06:48:21.2391430Z ExecuteExternalTool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/ld -version_details
+2026-06-04T06:48:21.2589970Z 
+2026-06-04T06:48:21.2850010Z Build description signature: 9d169cd2708727788ee2ec8d95dd038c
+2026-06-04T06:48:21.2953930Z Build description path: /Users/runner/work/WZ-/WZ-/build/XCBuildData/9d169cd2708727788ee2ec8d95dd038c.xcbuilddata
+2026-06-04T06:48:21.3061740Z ClangStatCache /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache
+2026-06-04T06:48:21.3164280Z     cd /Users/runner/work/WZ-/WZ-/WarZoneChanger.xcodeproj
+2026-06-04T06:48:21.3266390Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang-stat-cache /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -o /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache
+2026-06-04T06:48:21.4487410Z 
+2026-06-04T06:48:21.4516660Z MkDir /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.4517980Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.4518940Z     /bin/mkdir -p /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app
+2026-06-04T06:48:21.4535940Z 
+2026-06-04T06:48:21.4537780Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger.hmap (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.4539700Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.4541120Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger.hmap
+2026-06-04T06:48:21.4542230Z 
+2026-06-04T06:48:21.4543580Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/all-product-headers.yaml (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.4545900Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.4668610Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/all-product-headers.yaml
+2026-06-04T06:48:21.4774300Z 
+2026-06-04T06:48:21.4787330Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.4823150Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.4925650Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap
+2026-06-04T06:48:21.5062910Z 
+2026-06-04T06:48:21.5168360Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5207200Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5208460Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap
+2026-06-04T06:48:21.5209090Z 
+2026-06-04T06:48:21.5209800Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5210890Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5211540Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap
+2026-06-04T06:48:21.5212470Z 
+2026-06-04T06:48:21.5213890Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5214790Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5218080Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap
+2026-06-04T06:48:21.5219770Z 
+2026-06-04T06:48:21.5250250Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-non-framework-target-headers.hmap (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5251490Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5256860Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-non-framework-target-headers.hmap
+2026-06-04T06:48:21.5257690Z 
+2026-06-04T06:48:21.5258330Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.LinkFileList (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5259080Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5260150Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.LinkFileList
+2026-06-04T06:48:21.5260670Z 
+2026-06-04T06:48:21.5261340Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5262460Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5263250Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json
+2026-06-04T06:48:21.5263830Z 
+2026-06-04T06:48:21.5264440Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftFileList (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5265270Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5265840Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftFileList
+2026-06-04T06:48:21.5266380Z 
+2026-06-04T06:48:21.5267090Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-OutputFileMap.json (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5267940Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5268580Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-OutputFileMap.json
+2026-06-04T06:48:21.5269080Z 
+2026-06-04T06:48:21.5269660Z GenerateAssetSymbols /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets /Users/runner/work/WZ-/WZ-/WarZoneChanger/Preview\ Assets.xcassets (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5270460Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5275790Z     /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/actool --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/assetcatalog_generated_info.plist --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 15.0 --platform iphoneos --compile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets /Users/runner/work/WZ-/WZ-/WarZoneChanger/Preview\ Assets.xcassets --bundle-identifier com.warzone.changer --generate-swift-asset-symbols /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.swift --generate-objc-asset-symbols /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.h --generate-asset-symbol-index /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+2026-06-04T06:48:21.5280310Z /* com.apple.actool.compilation-results */
+2026-06-04T06:48:21.5281410Z /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols-Index.plist
+2026-06-04T06:48:21.5283230Z /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.h
+2026-06-04T06:48:21.5295590Z /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.swift
+2026-06-04T06:48:21.5296120Z 
+2026-06-04T06:48:21.5296120Z 
+2026-06-04T06:48:21.5296640Z CpResource /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/warzone.json /Users/runner/work/WZ-/WZ-/WarZoneChanger/warzone.json (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5297420Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5298160Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks /Users/runner/work/WZ-/WZ-/WarZoneChanger/warzone.json /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app
+2026-06-04T06:48:21.5298780Z 
+2026-06-04T06:48:21.5300240Z CompileAssetCatalog /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets /Users/runner/work/WZ-/WZ-/WarZoneChanger/Preview\ Assets.xcassets (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:21.5302200Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:21.5310820Z     /Applications/Xcode_15.4.app/Contents/Developer/usr/bin/actool --output-format human-readable-text --notices --warnings --export-dependency-info /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/assetcatalog_dependencies --output-partial-info-plist /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/assetcatalog_generated_info.plist --app-icon AppIcon --accent-color AccentColor --compress-pngs --enable-on-demand-resources YES --development-region en --target-device iphone --target-device ipad --minimum-deployment-target 15.0 --platform iphoneos --compile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets /Users/runner/work/WZ-/WZ-/WarZoneChanger/Preview\ Assets.xcassets
+2026-06-04T06:48:25.2884980Z /* com.apple.actool.document.warnings */
+2026-06-04T06:48:25.2886390Z /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets:./AccentColor.colorset/[universal][][][][][][]: warning: AccentColor references a system color named systemBlue for platform Universal, but the catalog is building for iOS. The color may appear differently at runtime.
+2026-06-04T06:48:25.2987900Z /Users/runner/work/WZ-/WZ-/WarZoneChanger/Assets.xcassets:./AccentColor.colorset/[universal][][][][][][]: warning: Unable to find Universal system color named: systemBlue, older systems will not see the expected value
+2026-06-04T06:48:25.3087770Z /* com.apple.actool.compilation-results */
+2026-06-04T06:48:25.3189620Z /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Assets.car
+2026-06-04T06:48:25.3307170Z /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/assetcatalog_generated_info.plist
+2026-06-04T06:48:25.3355000Z 
+2026-06-04T06:48:25.3358260Z 
+2026-06-04T06:48:25.3377310Z SwiftDriver WarZoneChanger normal arm64 com.apple.xcode.tools.swift.compiler (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:25.3381000Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:25.3410880Z     builtin-SwiftDriver -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name WarZoneChanger -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftFileList -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -enable-bare-slash-regex -g -Xfrontend -serialize-debugging-options -swift-version 5 -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-Swift.h -working-directory /Users/runner/work/WZ-/WZ- -no-emit-module-separately-wmo
+2026-06-04T06:48:25.3423180Z 
+2026-06-04T06:48:25.3441600Z SwiftDriver\ Compilation WarZoneChanger normal arm64 com.apple.xcode.tools.swift.compiler (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:25.3454510Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:25.3492110Z     builtin-Swift-Compilation -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name WarZoneChanger -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftFileList -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -enable-bare-slash-regex -g -Xfrontend -serialize-debugging-options -swift-version 5 -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-Swift.h -working-directory /Users/runner/work/WZ-/WZ- -no-emit-module-separately-wmo
+2026-06-04T06:48:25.3530040Z 
+2026-06-04T06:48:25.3535040Z SwiftCompile normal arm64 Compiling\ WarZoneChangerApp.swift,\ ContentView.swift,\ LocationStore.swift,\ GeneratedAssetSymbols.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/WarZoneChangerApp.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/ContentView.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/LocationStore.swift /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.swift (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:25.3561200Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:25.3590020Z     builtin-swiftTaskExecution -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -frontend -c /Users/runner/work/WZ-/WZ-/WarZoneChanger/WarZoneChangerApp.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/ContentView.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/LocationStore.swift /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.swift -supplementary-output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/supplementaryOutputs-1 -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64 -target arm64-apple-ios15.0 -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -no-color-diagnostics -g -swift-version 5 -enforce-exclusivity\=checked -O -serialize-debugging-options -const-gather-protocols-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/WZ-/WZ- -resource-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources -module-name WarZoneChanger -frontend-parseable-output -disable-clang-spi -target-sdk-version 17.5 -target-sdk-name iphoneos17.5 -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -enable-default-cmo -num-threads 3 -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChangerApp.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/ContentView.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/LocationStore.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/GeneratedAssetSymbols.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChangerApp.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/ContentView.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/LocationStore.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/GeneratedAssetSymbols.o
+2026-06-04T06:48:25.3608830Z CompileSwift normal arm64 (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:25.3613690Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:25.3644330Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swift-frontend -c /Users/runner/work/WZ-/WZ-/WarZoneChanger/WarZoneChangerApp.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/ContentView.swift /Users/runner/work/WZ-/WZ-/WarZoneChanger/LocationStore.swift /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/GeneratedAssetSymbols.swift -supplementary-output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/supplementaryOutputs-1 -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64 -target arm64-apple-ios15.0 -Xllvm -aarch64-use-tbi -enable-objc-interop -stack-check -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -no-color-diagnostics -g -swift-version 5 -enforce-exclusivity\=checked -O -serialize-debugging-options -const-gather-protocols-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json -enable-bare-slash-regex -empty-abi-descriptor -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -working-directory -Xcc /Users/runner/work/WZ-/WZ- -resource-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/swift-overrides.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources -module-name WarZoneChanger -frontend-parseable-output -disable-clang-spi -target-sdk-version 17.5 -target-sdk-name iphoneos17.5 -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -external-plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/local/lib/swift/host/plugins\#/Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/usr/bin/swift-plugin-server -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/host/plugins -plugin-path /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/local/lib/swift/host/plugins -enable-default-cmo -num-threads 3 -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChangerApp.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/ContentView.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/LocationStore.o -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/GeneratedAssetSymbols.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChangerApp.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/ContentView.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/LocationStore.o -index-unit-output-path /WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/GeneratedAssetSymbols.o
+2026-06-04T06:48:26.5988180Z 
+2026-06-04T06:48:26.6092280Z ProcessInfoPlistFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Info.plist /Users/runner/work/WZ-/WZ-/WarZoneChanger/Info.plist (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.6232850Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.6345650Z     builtin-infoPlistUtility /Users/runner/work/WZ-/WZ-/WarZoneChanger/Info.plist -producttype com.apple.product-type.application -genpkginfo /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/PkgInfo -expandbuildsettings -format binary -platform iphoneos -additionalcontentfile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/assetcatalog_generated_info.plist -requiredArchitecture arm64 -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Info.plist
+2026-06-04T06:48:26.6454260Z 
+2026-06-04T06:48:26.6569130Z SwiftDriverJobDiscovery normal arm64 Compiling WarZoneChangerApp.swift, ContentView.swift, LocationStore.swift, GeneratedAssetSymbols.swift (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.6670340Z 
+2026-06-04T06:48:26.6771280Z SwiftDriver\ Compilation\ Requirements WarZoneChanger normal arm64 com.apple.xcode.tools.swift.compiler (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.6871230Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.6982250Z     builtin-Swift-Compilation-Requirements -- /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc -module-name WarZoneChanger -O -whole-module-optimization -enforce-exclusivity\=checked @/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftFileList -sdk /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -target arm64-apple-ios15.0 -enable-bare-slash-regex -g -Xfrontend -serialize-debugging-options -swift-version 5 -I /Users/runner/work/WZ-/WZ-/build -F /Users/runner/work/WZ-/WZ-/build -emit-localized-strings -emit-localized-strings-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64 -c -num-threads 3 -Xcc -ivfsstatcache -Xcc /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/com.apple.DeveloperTools/15.4-15F31d/Xcode/SDKStatCaches.noindex/iphoneos17.5-21F77-f0fa7969d082b13145125136a829df3a.sdkstatcache -output-file-map /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-OutputFileMap.json -use-frontend-parseable-output -save-temps -no-color-diagnostics -serialize-diagnostics -emit-dependencies -emit-module -emit-module-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftmodule -validate-clang-modules-once -clang-build-session-file /var/folders/y8/mxm23y3s6m38f6r8d1pbqz600000gn/C/org.llvm.clang/ModuleCache.noindex/Session.modulevalidation -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/swift-overrides.hmap -emit-const-values -Xfrontend -const-gather-protocols-file -Xfrontend /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_const_extract_protocols.json -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-generated-files.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-own-target-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-all-target-headers.hmap -Xcc -iquote -Xcc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/WarZoneChanger-project-headers.hmap -Xcc -I/Users/runner/work/WZ-/WZ-/build/include -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources-normal/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/arm64 -Xcc -I/Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources -emit-objc-header -emit-objc-header-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-Swift.h -working-directory /Users/runner/work/WZ-/WZ- -no-emit-module-separately-wmo
+2026-06-04T06:48:26.7072940Z 
+2026-06-04T06:48:26.7182130Z SwiftMergeGeneratedHeaders /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/WarZoneChanger-Swift.h /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-Swift.h (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.7290920Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.7392590Z     builtin-swiftHeaderTool -arch arm64 /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger-Swift.h -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/DerivedSources/WarZoneChanger-Swift.h
+2026-06-04T06:48:26.7494120Z 
+2026-06-04T06:48:26.7595520Z Copy /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/arm64-apple-ios.swiftmodule /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftmodule (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.7716450Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.7829540Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftmodule /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/arm64-apple-ios.swiftmodule
+2026-06-04T06:48:26.7935270Z 
+2026-06-04T06:48:26.8075420Z Copy /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/arm64-apple-ios.swiftdoc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftdoc (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.8177570Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.8315940Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftdoc /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/arm64-apple-ios.swiftdoc
+2026-06-04T06:48:26.8418080Z 
+2026-06-04T06:48:26.8541720Z Copy /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/arm64-apple-ios.abi.json /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.abi.json (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.8685940Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.8825460Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.abi.json /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/arm64-apple-ios.abi.json
+2026-06-04T06:48:26.8927260Z 
+2026-06-04T06:48:26.9066690Z Copy /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftsourceinfo (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.9169440Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.9272740Z     builtin-copy -exclude .DS_Store -exclude CVS -exclude .svn -exclude .git -exclude .hg -resolve-src-symlinks -rename /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftsourceinfo /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.swiftmodule/Project/arm64-apple-ios.swiftsourceinfo
+2026-06-04T06:48:26.9374490Z 
+2026-06-04T06:48:26.9482570Z Ld /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/WarZoneChanger normal (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.9583830Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:26.9689420Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -Xlinker -reproducible -target arm64-apple-ios15.0 -isysroot /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk -Os -L/Users/runner/work/WZ-/WZ-/build/EagerLinkingTBDs/Release-iphoneos -L/Users/runner/work/WZ-/WZ-/build -F/Users/runner/work/WZ-/WZ-/build/EagerLinkingTBDs/Release-iphoneos -F/Users/runner/work/WZ-/WZ-/build -filelist /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.LinkFileList -Xlinker -rpath -Xlinker @executable_path/Frameworks -dead_strip -Xlinker -object_path_lto -Xlinker /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_lto.o -fobjc-link-runtime -L/Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/iphoneos -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.swiftmodule -Xlinker -dependency_info -Xlinker /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_dependency_info.dat -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/WarZoneChanger
+2026-06-04T06:48:26.9792210Z 
+2026-06-04T06:48:26.9893290Z GenerateDSYMFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app.dSYM /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/WarZoneChanger (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:26.9995020Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0096510Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/dsymutil /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/WarZoneChanger -o /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app.dSYM
+2026-06-04T06:48:27.0196810Z 
+2026-06-04T06:48:27.0260810Z CopySwiftLibs /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0261970Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0266940Z     builtin-swiftStdLibTool --copy --verbose --scan-executable /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/WarZoneChanger --scan-folder /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Frameworks --scan-folder /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/PlugIns --scan-folder /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/SystemExtensions --scan-folder /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Extensions --platform iphoneos --toolchain /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --destination /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Frameworks --strip-bitcode --strip-bitcode-tool /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/bitcode_strip --emit-dependency-info /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/SwiftStdLibToolInputDependencies.dep --filter-for-swift-os
+2026-06-04T06:48:27.0370450Z Ignoring --strip-bitcode because --sign was not passed
+2026-06-04T06:48:27.0374670Z 
+2026-06-04T06:48:27.0376130Z WriteAuxiliaryFile /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftConstValuesFileList (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0454770Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0455690Z     write-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftConstValuesFileList
+2026-06-04T06:48:27.0456580Z 
+2026-06-04T06:48:27.0456960Z ExtractAppIntentsMetadata (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0457490Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0462240Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsmetadataprocessor --output /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app --toolchain-dir /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain --module-name WarZoneChanger --sdk-root /Applications/Xcode_15.4.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk --xcode-version 15F31d --platform-family iOS --deployment-target 15.0 --target-triple arm64-apple-ios15.0 --binary-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/WarZoneChanger --dependency-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger_dependency_info.dat --stringsdata-file /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/ExtractedAppShortcutsMetadata.stringsdata --source-file-list /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftFileList --swift-const-vals-list /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/Objects-normal/arm64/WarZoneChanger.SwiftConstValuesFileList --compile-time-extraction --deployment-aware-processing
+2026-06-04T06:48:27.0466960Z note: Metadata extraction skipped. No AppIntents.framework dependency found. (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0467550Z 
+2026-06-04T06:48:27.0467910Z AppIntentsSSUTraining (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0468540Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0470390Z     /Applications/Xcode_15.4.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/appintentsnltrainingprocessor --infoplist-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Info.plist --temp-dir-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.build/Release-iphoneos/WarZoneChanger.build/ssu --bundle-id com.warzone.changer --product-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app --extracted-metadata-path /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app/Metadata.appintents --archive-ssu-assets
+2026-06-04T06:48:27.0472500Z 2026-06-04 06:48:26.872 appintentsnltrainingprocessor[12989:36323] Parsing options for appintentsnltrainingprocessor
+2026-06-04T06:48:27.0473650Z 2026-06-04 06:48:26.888 appintentsnltrainingprocessor[12989:36323] No AppShortcuts found - Skipping.
+2026-06-04T06:48:27.0474110Z 
+2026-06-04T06:48:27.0474610Z RegisterExecutionPolicyException /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0475400Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0475970Z     builtin-RegisterExecutionPolicyException /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app
+2026-06-04T06:48:27.0476450Z 
+2026-06-04T06:48:27.0476850Z Validate /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0477460Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0478000Z     builtin-validationUtility /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app -validate-for-store
+2026-06-04T06:48:27.0478480Z 
+2026-06-04T06:48:27.0478870Z Touch /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app (in target 'WarZoneChanger' from project 'WarZoneChanger')
+2026-06-04T06:48:27.0479510Z     cd /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:27.0479970Z     /usr/bin/touch -c /Users/runner/work/WZ-/WZ-/build/WarZoneChanger.app
+2026-06-04T06:48:27.0480360Z 
+2026-06-04T06:48:27.0480540Z ** BUILD SUCCEEDED **
+2026-06-04T06:48:27.0480760Z 
+2026-06-04T06:48:27.0524970Z ##[group]Run APP_PATH=./build/WarZoneChanger.app
+2026-06-04T06:48:27.0525280Z [36;1mAPP_PATH=./build/WarZoneChanger.app[0m
+2026-06-04T06:48:27.0525490Z [36;1m[0m
+2026-06-04T06:48:27.0525640Z [36;1mif [ ! -d "$APP_PATH" ]; then[0m
+2026-06-04T06:48:27.0525860Z [36;1m  echo "Could not find app at $APP_PATH"[0m
+2026-06-04T06:48:27.0526090Z [36;1m  ls -la ./build/[0m
+2026-06-04T06:48:27.0526250Z [36;1m  exit 1[0m
+2026-06-04T06:48:27.0526380Z [36;1mfi[0m
+2026-06-04T06:48:27.0526510Z [36;1m[0m
+2026-06-04T06:48:27.0526640Z [36;1mecho "Found app at: $APP_PATH"[0m
+2026-06-04T06:48:27.0526850Z [36;1mmkdir -p ./ipa/Payload[0m
+2026-06-04T06:48:27.0527050Z [36;1mcp -R "$APP_PATH" ./ipa/Payload/[0m
+2026-06-04T06:48:27.0527240Z [36;1mcd ./ipa[0m
+2026-06-04T06:48:27.0527410Z [36;1mzip -r WarZoneChanger.ipa Payload[0m
+2026-06-04T06:48:27.0527610Z [36;1mcd ..[0m
+2026-06-04T06:48:27.0527810Z [36;1mls -la ./ipa/WarZoneChanger.ipa[0m
+2026-06-04T06:48:27.0726370Z shell: /bin/bash -e {0}
+2026-06-04T06:48:27.0726570Z env:
+2026-06-04T06:48:27.0726760Z   MD_APPLE_SDK_ROOT: /Applications/Xcode_15.4.app
+2026-06-04T06:48:27.0726990Z ##[endgroup]
+2026-06-04T06:48:27.1154430Z Found app at: ./build/WarZoneChanger.app
+2026-06-04T06:48:27.1389360Z   adding: Payload/ (stored 0%)
+2026-06-04T06:48:27.1490400Z   adding: Payload/WarZoneChanger.app/ (stored 0%)
+2026-06-04T06:48:27.1542010Z   adding: Payload/WarZoneChanger.app/warzone.json (deflated 90%)
+2026-06-04T06:48:27.1542910Z   adding: Payload/WarZoneChanger.app/Assets.car (deflated 96%)
+2026-06-04T06:48:27.1668510Z   adding: Payload/WarZoneChanger.app/WarZoneChanger (deflated 79%)
+2026-06-04T06:48:27.1739070Z   adding: Payload/WarZoneChanger.app/Info.plist (deflated 35%)
+2026-06-04T06:48:27.1739860Z   adding: Payload/WarZoneChanger.app/PkgInfo (stored 0%)
+2026-06-04T06:48:27.1740310Z -rw-r--r--  1 runner  staff  126818 Jun  4 06:48 ./ipa/WarZoneChanger.ipa
+2026-06-04T06:48:27.1854970Z ##[group]Run actions/upload-artifact@v4
+2026-06-04T06:48:27.1855180Z with:
+2026-06-04T06:48:27.1855340Z   name: WarZoneChanger-IPA
+2026-06-04T06:48:27.1855530Z   path: ipa/WarZoneChanger.ipa
+2026-06-04T06:48:27.1855700Z   retention-days: 90
+2026-06-04T06:48:27.1855890Z   if-no-files-found: warn
+2026-06-04T06:48:27.1856050Z   compression-level: 6
+2026-06-04T06:48:27.1856220Z   overwrite: false
+2026-06-04T06:48:27.1856380Z   include-hidden-files: false
+2026-06-04T06:48:27.1856560Z env:
+2026-06-04T06:48:27.1856730Z   MD_APPLE_SDK_ROOT: /Applications/Xcode_15.4.app
+2026-06-04T06:48:27.1856960Z ##[endgroup]
+2026-06-04T06:48:27.6329740Z With the provided path, there will be 1 file uploaded
+2026-06-04T06:48:27.6531910Z Artifact name is valid!
+2026-06-04T06:48:27.6648040Z Root directory input is valid!
+2026-06-04T06:48:27.9792080Z Beginning upload of artifact content to blob storage
+2026-06-04T06:48:28.2450390Z Uploaded bytes 123755
+2026-06-04T06:48:28.2930260Z Finished uploading artifact content to blob storage!
+2026-06-04T06:48:28.2931090Z SHA256 digest of uploaded artifact zip is 7a1539abb1d3b6ca56bbbf2e835675f53a899cc53d831d0a52debd3ecc21d6c3
+2026-06-04T06:48:28.2934610Z Finalizing artifact upload
+2026-06-04T06:48:28.4963220Z Artifact WarZoneChanger-IPA.zip successfully finalized. Artifact ID 7404840991
+2026-06-04T06:48:28.4965300Z Artifact WarZoneChanger-IPA has been successfully uploaded! Final size is 123755 bytes. Artifact ID is 7404840991
+2026-06-04T06:48:28.4966950Z Artifact download URL: https://github.com/W9720/WZ-/actions/runs/26935732244/artifacts/7404840991
+2026-06-04T06:48:28.5078770Z Post job cleanup.
+2026-06-04T06:48:28.6287330Z [command]/opt/homebrew/bin/git version
+2026-06-04T06:48:28.6504530Z git version 2.54.0
+2026-06-04T06:48:28.7087920Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/3ab52fb6-cb46-4f86-81b4-1754b3ddcf47/.gitconfig'
+2026-06-04T06:48:28.7192980Z Temporarily overriding HOME='/Users/runner/work/_temp/3ab52fb6-cb46-4f86-81b4-1754b3ddcf47' before making global git config changes
+2026-06-04T06:48:28.7300360Z Adding repository directory to the temporary git global config as a safe directory
+2026-06-04T06:48:28.7401520Z [command]/opt/homebrew/bin/git config --global --add safe.directory /Users/runner/work/WZ-/WZ-
+2026-06-04T06:48:28.7704920Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-06-04T06:48:28.8023150Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-06-04T06:48:28.8337370Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-06-04T06:48:28.8439480Z http.https://github.com/.extraheader
+2026-06-04T06:48:28.8643860Z [command]/opt/homebrew/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-06-04T06:48:28.8870190Z [command]/opt/homebrew/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-06-04T06:48:28.9183700Z [command]/opt/homebrew/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-06-04T06:48:28.9213390Z [command]/opt/homebrew/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-06-04T06:48:29.0209070Z Cleaning up orphan processes
+2026-06-04T06:48:29.3774960Z Terminate orphan process: pid (12297) (ibtoold)
+2026-06-04T06:48:29.4268650Z Terminate orphan process: pid (12270) (ibtoold)
+2026-06-04T06:48:29.6874790Z ##[warning]Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/checkout@v4, actions/upload-artifact@v4. Actions will be forced to run with Node.js 24 by default starting June 16th, 2026. Node.js 20 will be removed from the runner on September 16th, 2026. Please check if updated versions of these actions are available that support Node.js 24. To opt into Node.js 24 now, set the FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true environment variable on the runner or in your workflow file. Once Node.js 24 becomes the default, you can temporarily opt out by setting ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION=true. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+

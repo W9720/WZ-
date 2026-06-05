@@ -52,15 +52,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let dnsSettings = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29", "114.114.114.114"])
         dnsSettings.matchDomains = [""]
-        dnsSettings.timeout = 5
         settings.dnsSettings = dnsSettings
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleAppWillEnterForeground),
-            name: UIApplication.willEnterForegroundNotification,
-            object: nil
-        )
         
         setTunnelNetworkSettings(settings) { [weak self] error in
             guard let self = self else { return }
@@ -91,7 +83,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         NSLog("[PacketTunnel] 停止隧道")
         cleanupTimer?.cancel()
         cleanupTimer = nil
-        NotificationCenter.default.removeObserver(self)
         udpSessions.values.forEach { $0.close() }
         udpSessions.removeAll()
         tcpConnections.values.forEach { $0.close() }
@@ -229,15 +220,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         return UInt16(~sum & 0xFFFF)
     }
     
-    @objc private func handleAppWillEnterForeground() {
-        NSLog("[PacketTunnel] 应用进入前台，清理所有连接")
-        
-        udpSessions.values.forEach { $0.close() }
-        tcpConnections.values.forEach { $0.close() }
-        udpSessions.removeAll()
-        tcpConnections.removeAll()
-    }
-    
     private func startCleanupTimer() {
         cleanupTimer = DispatchSource.makeTimerSource(queue: .global())
         cleanupTimer?.schedule(deadline: .now(), repeating: 60.0)
@@ -247,8 +229,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             let udpCount = self.udpSessions.count
             let tcpCount = self.tcpConnections.count
             
-            self.udpSessions = self.udpSessions.filter { $0.value.connection != nil }
-            self.tcpConnections = self.tcpConnections.filter { $0.value.connection != nil }
+            self.udpSessions = self.udpSessions.filter { $0.value.isConnected }
+            self.tcpConnections = self.tcpConnections.filter { $0.value.isConnected }
             
             NSLog("[PacketTunnel] 连接清理: UDP=%d->%d, TCP=%d->%d", 
                   udpCount, self.udpSessions.count, tcpCount, self.tcpConnections.count)
@@ -267,6 +249,10 @@ class UDPSession {
     private let queue = DispatchQueue(label: "com.warzone.udp.session")
     private var lastActivity: Date = Date()
     private var timeoutTimer: DispatchSourceTimer?
+    
+    var isConnected: Bool {
+        return connection != nil
+    }
     
     init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
         self.srcIP = srcIP
@@ -453,6 +439,10 @@ class TCPConnection {
     private let queue = DispatchQueue(label: "com.warzone.tcp.connection")
     private var lastActivity: Date = Date()
     private var timeoutTimer: DispatchSourceTimer?
+    
+    var isConnected: Bool {
+        return connection != nil
+    }
     
     enum TCPState {
         case closed

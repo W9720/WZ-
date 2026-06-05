@@ -17,7 +17,7 @@ class AnnouncementManager: ObservableObject {
     @Published var unreadAnnouncements: [Announcement] = []
     @Published var isLoading = false
     
-    private let serverURL = "https://your-server-domain.com"
+    private let serverURL = "http://47.104.237.94:3001"
     private let userIDKey = "app_user_id"
     
     private var userID: String {

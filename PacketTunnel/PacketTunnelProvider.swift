@@ -142,7 +142,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         if let existingConnection = udpConnections[connectionKey] {
             existingConnection.send(content: payload, completion: .idempotent)
-            scheduleUDPReceive(existingConnection, sourceIP: sourceIP, sourcePort: sourcePort)
+            scheduleUDPReceive(existingConnection, sourceIP: sourceIP, sourcePort: sourcePort, destIP: destIP, destPort: destPort)
         } else {
             let connection = NWConnection(host: host, port: port, using: .udp)
             connection.stateUpdateHandler = { [weak self] state in
@@ -150,7 +150,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 switch state {
                 case .ready:
                     connection.send(content: payload, completion: .idempotent)
-                    self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort)
+                    self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort, destIP: destIP, destPort: destPort)
                 case .failed, .cancelled:
                     self.udpConnections.removeValue(forKey: connectionKey)
                 default:
@@ -162,19 +162,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
     
-    private func scheduleUDPReceive(_ connection: NWConnection, sourceIP: String, sourcePort: UInt16) {
+    private func scheduleUDPReceive(_ connection: NWConnection, sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16) {
         connection.receiveMessage { [weak self] data, context, isComplete, error in
             guard let self = self else { return }
             if let data = data, !data.isEmpty {
-                let destIP = sourceIP
-                let destPort = sourcePort
-                let srcIP = connection.host.debugDescription.replacingOccurrences(of: "\"", with: "")
-                if let srcPortNum = UInt16(connection.port.debugDescription.replacingOccurrences(of: "\"", with: "")) {
-                    self.sendUDPResponse(sourceIP: srcIP, sourcePort: srcPortNum, destIP: destIP, destPort: destPort, payload: data)
-                }
+                self.sendUDPResponse(sourceIP: destIP, sourcePort: destPort, destIP: sourceIP, destPort: sourcePort, payload: data)
             }
             if error == nil {
-                self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort)
+                self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort, destIP: destIP, destPort: destPort)
             }
         }
     }

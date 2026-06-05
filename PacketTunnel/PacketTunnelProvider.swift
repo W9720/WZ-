@@ -146,7 +146,7 @@ class UDPSession {
     private let dstIP: String
     private let dstPort: UInt16
     private let packetFlow: NEPacketTunnelFlow
-    private let socket: Int32
+    private let sockfd: Int32
     
     init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
         self.srcIP = srcIP
@@ -154,7 +154,7 @@ class UDPSession {
         self.dstIP = dstIP
         self.dstPort = dstPort
         self.packetFlow = packetFlow
-        self.socket = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)
+        self.sockfd = Darwin.socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)
     }
     
     func start() {
@@ -164,7 +164,9 @@ class UDPSession {
         addr.sin_port = UInt16(0).bigEndian
         addr.sin_addr.s_addr = inet_addr("0.0.0.0")
         
-        bind(socket, &addr, socklen_t(MemoryLayout<sockaddr_in>.stride))
+        withUnsafePointer(to: &addr) { ptr in
+            bind(sockfd, UnsafePointer(ptr), socklen_t(MemoryLayout<sockaddr_in>.stride))
+        }
         
         DispatchQueue.global().async { [weak self] in
             guard let self = self else { return }
@@ -180,7 +182,9 @@ class UDPSession {
         addr.sin_addr.s_addr = inet_addr(dstIP)
         
         data.withUnsafeBytes { ptr in
-            sendto(socket, ptr.baseAddress, data.count, 0, &addr, socklen_t(MemoryLayout<sockaddr_in>.stride))
+            withUnsafePointer(to: &addr) { addrPtr in
+                sendto(sockfd, ptr.baseAddress, data.count, 0, UnsafePointer(addrPtr), socklen_t(MemoryLayout<sockaddr_in>.stride))
+            }
         }
     }
     
@@ -190,7 +194,10 @@ class UDPSession {
         var addrLen = socklen_t(MemoryLayout<sockaddr_in>.stride)
         
         while true {
-            let bytesRead = recvfrom(socket, &buffer, buffer.count, 0, &addr, &addrLen)
+            let bytesRead = withUnsafeMutablePointer(to: &addr) { addrPtr in
+                recvfrom(sockfd, &buffer, buffer.count, 0, UnsafeMutablePointer(addrPtr), &addrLen)
+            }
+            
             if bytesRead > 0 {
                 let response = Data(bytes: buffer, count: bytesRead)
                 sendResponse(response)
@@ -281,8 +288,8 @@ class UDPSession {
     }
     
     func close() {
-        shutdown(socket, SHUT_RDWR)
-        Darwin.close(socket)
+        shutdown(sockfd, SHUT_RDWR)
+        Darwin.close(sockfd)
     }
 }
 
@@ -292,7 +299,7 @@ class TCPConnection {
     private let srcPort: UInt16
     private let dstIP: String
     private let dstPort: UInt16
-    private var socket: Int32 = -1
+    private var sockfd: Int32 = -1
     private var clientBuffer = Data()
     private var isTarget = false
     
@@ -316,7 +323,7 @@ class TCPConnection {
             return
         }
         
-        if (flags & 0x10) != 0 && socket == -1 {
+        if (flags & 0x10) != 0 && sockfd == -1 {
             connectToServer()
         }
         
@@ -329,7 +336,7 @@ class TCPConnection {
                 }
             }
             
-            if socket != -1 && !isTarget {
+            if sockfd != -1 && !isTarget {
                 sendToServer(payload)
             }
         }
@@ -354,7 +361,7 @@ class TCPConnection {
     }
     
     private func connectToServer() {
-        socket = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)
+        sockfd = Darwin.socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)
         
         var addr = sockaddr_in()
         addr.sin_len = UInt8(MemoryLayout<sockaddr_in>.stride)
@@ -365,7 +372,9 @@ class TCPConnection {
         DispatchQueue.global().async { [weak self] in
             guard let self = self else { return }
             
-            let result = connect(self.socket, &addr, socklen_t(MemoryLayout<sockaddr_in>.stride))
+            let result = withUnsafePointer(to: &addr) { addrPtr in
+                connect(self.sockfd, UnsafePointer(addrPtr), socklen_t(MemoryLayout<sockaddr_in>.stride))
+            }
             
             if result == 0 {
                 self.onConnected()
@@ -389,9 +398,9 @@ class TCPConnection {
     }
     
     private func sendToServer(_ data: Data) {
-        if socket != -1 {
+        if sockfd != -1 {
             data.withUnsafeBytes { ptr in
-                send(socket, ptr.baseAddress, data.count, 0)
+                _ = send(sockfd, ptr.baseAddress, data.count, 0)
             }
         }
     }
@@ -403,7 +412,7 @@ class TCPConnection {
             var buffer = [UInt8](repeating: 0, count: 4096)
             
             while true {
-                let bytesRead = recv(self.socket, &buffer, buffer.count, 0)
+                let bytesRead = recv(self.sockfd, &buffer, buffer.count, 0)
                 
                 if bytesRead > 0 {
                     let response = Data(bytes: buffer, count: bytesRead)
@@ -548,10 +557,10 @@ class TCPConnection {
     }
     
     func close() {
-        if socket != -1 {
-            shutdown(socket, SHUT_RDWR)
-            Darwin.close(socket)
-            socket = -1
+        if sockfd != -1 {
+            shutdown(sockfd, SHUT_RDWR)
+            Darwin.close(sockfd)
+            sockfd = -1
         }
     }
 }

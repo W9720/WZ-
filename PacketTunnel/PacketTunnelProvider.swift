@@ -676,15 +676,22 @@ class TCPConnection {
     }
     
     private func sendFakeResponse() {
+        NSLog("[TCPConnection] 开始处理目标请求")
+        
         guard let location = LocationStore.shared.getSelectedLocation() else {
+            NSLog("[🔴 位置获取失败] App Group可能没有正确配置，LocationStore返回nil")
+            NSLog("[🔴 检查扩展Entitlements是否包含: com.apple.security.application-groups")
             sendRST()
             return
         }
+        
+        NSLog("[✅ 位置获取成功] adcode=\(location.adcode), name=\(location.name)")
         
         let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: location.adcode, regionName: location.name)
         let fakeResponse = "HTTP/1.1 200 OK\r\nContent-Type: application/json; charset=utf-8\r\nConnection: close\r\nContent-Length: \(fakeBody.count)\r\n\r\n\(fakeBody)"
         
         guard let responseData = fakeResponse.data(using: .utf8) else {
+            NSLog("[🔴 响应数据编码失败]")
             sendRST()
             return
         }

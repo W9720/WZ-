@@ -44,7 +44,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard let self = self else { return }
             
             for (index, packet) in packets.enumerated() {
-                let protocolNum = protocols[index] as Int32
+                let protocolNum = (protocols[index] as! NSNumber).int32Value
                 self.handlePacket(packet, protocolNumber: protocolNum)
             }
             

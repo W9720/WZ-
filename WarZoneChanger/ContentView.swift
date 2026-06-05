@@ -227,24 +227,43 @@ struct ContentView: View {
                         }
                         
                         // 操作按钮
-                        Button(action: {
-                            Task {
-                                await handleStartModify()
+                        if vpnManager.isConnected {
+                            Button(action: {
+                                vpnManager.stopVPN()
+                            }) {
+                                Text("停止修改")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 56)
+                                    .background(Color.red)
+                                    .cornerRadius(16)
+                                    .shadow(color: Color.red.opacity(0.3), radius: 8, x: 0, y: 4)
                             }
-                        }) {
-                            Text(vpnManager.isConnected ? "停止修改" : "开始修改")
-                                .font(.system(size: 18, weight: .semibold))
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 56)
-                                .background(vpnManager.isConnected ? Color.red : Color.accentColor)
-                                .cornerRadius(16)
-                                .shadow(color: vpnManager.isConnected ? Color.red.opacity(0.3) : Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .disabled(!canStopModify)
+                            .opacity(canStopModify ? 1.0 : 0.5)
+                        } else {
+                            Button(action: {
+                                Task {
+                                    await handleStartModify()
+                                }
+                            }) {
+                                Text(vpnManager.isConnecting ? "连接中..." : "开始修改")
+                                    .font(.system(size: 18, weight: .semibold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 56)
+                                    .background(Color.accentColor)
+                                    .cornerRadius(16)
+                                    .shadow(color: Color.accentColor.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .disabled(!canStartModify)
+                            .opacity(canStartModify ? 1.0 : 0.5)
                         }
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .disabled(!canStartModify)
-                        .opacity(canStartModify ? 1.0 : 0.5)
                         
                         // 作者信息
                         VStack(spacing: 12) {
@@ -334,7 +353,12 @@ struct ContentView: View {
         cardCodeManager.isLoggedIn && 
         cardCodeManager.cardInfo?.remainingCount ?? 0 > 0 && 
         selectedLocation != nil && 
-        !vpnManager.isConnected
+        !vpnManager.isConnected &&
+        !vpnManager.isConnecting
+    }
+    
+    private var canStopModify: Bool {
+        vpnManager.isConnected
     }
     
     private func formatDate(_ dateString: String) -> String {

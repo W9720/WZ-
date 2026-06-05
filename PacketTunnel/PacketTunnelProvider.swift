@@ -12,10 +12,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let networkSettings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "10.0.0.1")
         
         let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.0"])
-        ipv4Settings.includedRoutes = [NEIPv4Route.default()]
+        
+        let defaultRoute = NEIPv4Route.default()
+        let localRoute = NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0")
+        let localhostRoute = NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0")
+        let privateRoute = NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0")
+        
+        ipv4Settings.includedRoutes = [defaultRoute]
+        ipv4Settings.excludedRoutes = [localRoute, localhostRoute, privateRoute]
+        
         networkSettings.ipv4Settings = ipv4Settings
         
         let dnsSettings = NEDNSSettings(servers: ["8.8.8.8", "1.1.1.1"])
+        dnsSettings.matchDomains = [""]
         networkSettings.dnsSettings = dnsSettings
         
         networkSettings.mtu = 1400
@@ -66,11 +75,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard self.isRunning else { return }
             
             self.queue.async {
+                var outputPackets: [Data] = []
+                var outputProtocols: [NSNumber] = []
+                
                 for (index, packet) in packets.enumerated() {
                     let processedPacket = PacketHandler.shared.handlePacket(packet)
                     if let processed = processedPacket {
-                        self.packetFlow.writePackets([processed], withProtocols: [protocols[index]])
+                        outputPackets.append(processed)
+                        outputProtocols.append(protocols[index])
+                    } else {
+                        outputPackets.append(packet)
+                        outputProtocols.append(protocols[index])
                     }
+                }
+                
+                if !outputPackets.isEmpty {
+                    self.packetFlow.writePackets(outputPackets, withProtocols: outputProtocols)
                 }
                 
                 self.readPackets()

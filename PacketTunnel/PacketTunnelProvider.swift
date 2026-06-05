@@ -13,6 +13,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.0"])
         ipv4Settings.includedRoutes = [NEIPv4Route.default()]
+
+        // 排除本地和局域网流量，减少VPN处理的数据包数量
+        ipv4Settings.excludedRoutes = [
+            NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),      // 本地回环
+            NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),       // 私有网络 10.x.x.x
+            NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),   // 私有网络 172.16-31.x.x
+            NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0"),  // 私有网络 192.168.x.x
+            NEIPv4Route(destinationAddress: "224.0.0.0", subnetMask: "240.0.0.0"),      // 组播
+            NEIPv4Route(destinationAddress: "169.254.0.0", subnetMask: "255.255.0.0")   // 链路本地
+        ]
+
         settings.ipv4Settings = ipv4Settings
         
         settings.dnsSettings = NEDNSSettings(servers: ["8.8.8.8", "114.114.114.114"])
@@ -54,46 +65,53 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private func handlePacket(_ data: Data, protocolNumber: Int32) {
         guard data.count >= 20 else { return }
-        
+
         let versionAndIHL = data[0]
         let ihl = versionAndIHL & 0x0F
         let headerLength = Int(ihl) * 4
-        
+
         guard headerLength >= 20 && data.count >= headerLength else { return }
-        
+
         let protocolType = data[9]
-        
+
         let sourceAddress = "\(data[12]).\(data[13]).\(data[14]).\(data[15])"
         let destinationAddress = "\(data[16]).\(data[17]).\(data[18]).\(data[19])"
-        
+
         if protocolType == 17 {
             handleUDP(data, ipHeaderLength: headerLength, sourceIP: sourceAddress, destIP: destinationAddress)
             return
         }
-        
+
         guard protocolType == 6 else { return }
-        
+
         guard data.count >= headerLength + 20 else { return }
-        
+
         let tcpOffset = headerLength
         let sourcePort = UInt16(data[tcpOffset]) << 8 | UInt16(data[tcpOffset + 1])
         let destPort = UInt16(data[tcpOffset + 2]) << 8 | UInt16(data[tcpOffset + 3])
-        
+
+        // 方案3：非HTTP流量直接转发，不进行深度处理
+        if destPort != 80 && destPort != 8080 {
+            // 非HTTP流量，直接转发（简单处理）
+            handleNonHTTPPacket(data, ipHeaderLength: headerLength, sourceIP: sourceAddress, sourcePort: sourcePort, destIP: destinationAddress, destPort: destPort)
+            return
+        }
+
         let seqNum = UInt32(data[tcpOffset + 4]) << 24 | UInt32(data[tcpOffset + 5]) << 16 |
                      UInt32(data[tcpOffset + 6]) << 8 | UInt32(data[tcpOffset + 7])
-        
+
         let ackNum = UInt32(data[tcpOffset + 8]) << 24 | UInt32(data[tcpOffset + 9]) << 16 |
                      UInt32(data[tcpOffset + 10]) << 8 | UInt32(data[tcpOffset + 11])
-        
+
         let dataOffset = (data[tcpOffset + 12] >> 4) & 0x0F
         let tcpHeaderLength = Int(dataOffset) * 4
-        
+
         let flags = data[tcpOffset + 13]
-        
+
         let connectionKey = "\(sourceAddress):\(sourcePort)-\(destinationAddress):\(destPort)"
-        
+
         var connection = connections[connectionKey]
-        
+
         if connection == nil {
             connection = TCPConnection(
                 sourceIP: sourceAddress,
@@ -104,14 +122,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             )
             connections[connectionKey] = connection
         }
-        
+
         guard let conn = connection else { return }
-        
+
         let payloadOffset = headerLength + tcpHeaderLength
         let payload = payloadOffset < data.count ? data.subdata(in: payloadOffset..<data.count) : Data()
-        
+
         conn.handlePacket(seqNum: seqNum, ackNum: ackNum, flags: flags, payload: payload)
-        
+
         if (flags & 0x01) != 0 || (flags & 0x04) != 0 {
             conn.cancel()
             connections.removeValue(forKey: connectionKey)
@@ -120,21 +138,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private func handleUDP(_ data: Data, ipHeaderLength: Int, sourceIP: String, destIP: String) {
         guard data.count >= ipHeaderLength + 8 else { return }
-        
+
         let udpOffset = ipHeaderLength
         let sourcePort = UInt16(data[udpOffset]) << 8 | UInt16(data[udpOffset + 1])
         let destPort = UInt16(data[udpOffset + 2]) << 8 | UInt16(data[udpOffset + 3])
         let length = Int(UInt16(data[udpOffset + 4]) << 8 | UInt16(data[udpOffset + 5]))
         let payloadOffset = udpOffset + 8
-        
+
         guard data.count >= payloadOffset else { return }
         let payload = data.subdata(in: payloadOffset..<min(data.count, payloadOffset + length - 8))
-        
+
         let host = NWEndpoint.Host(destIP)
         let port = NWEndpoint.Port(rawValue: destPort)!
-        
+
         let connection = NWConnection(host: host, port: port, using: .udp)
-        
+
         connection.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
             switch state {
@@ -159,8 +177,52 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 break
             }
         }
-        
+
         connection.start(queue: .global())
+    }
+
+    // 方案3：非HTTP流量的简单转发处理
+    private func handleNonHTTPPacket(_ data: Data, ipHeaderLength: Int, sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16) {
+        let connectionKey = "\(sourceIP):\(sourcePort)-\(destIP):\(destPort)"
+
+        var connection = connections[connectionKey]
+
+        if connection == nil {
+            connection = TCPConnection(
+                sourceIP: sourceIP,
+                sourcePort: sourcePort,
+                destIP: destIP,
+                destPort: destPort,
+                packetFlow: packetFlow
+            )
+            connections[connectionKey] = connection
+        }
+
+        guard let conn = connection else { return }
+
+        // 解析TCP头部
+        let tcpOffset = ipHeaderLength
+        let seqNum = UInt32(data[tcpOffset + 4]) << 24 | UInt32(data[tcpOffset + 5]) << 16 |
+                     UInt32(data[tcpOffset + 6]) << 8 | UInt32(data[tcpOffset + 7])
+
+        let ackNum = UInt32(data[tcpOffset + 8]) << 24 | UInt32(data[tcpOffset + 9]) << 16 |
+                     UInt32(data[tcpOffset + 10]) << 8 | UInt32(data[tcpOffset + 11])
+
+        let dataOffset = (data[tcpOffset + 12] >> 4) & 0x0F
+        let tcpHeaderLength = Int(dataOffset) * 4
+
+        let flags = data[tcpOffset + 13]
+
+        let payloadOffset = ipHeaderLength + tcpHeaderLength
+        let payload = payloadOffset < data.count ? data.subdata(in: payloadOffset..<data.count) : Data()
+
+        // 直接转发，不进行HTTP解析
+        conn.handlePacket(seqNum: seqNum, ackNum: ackNum, flags: flags, payload: payload)
+
+        if (flags & 0x01) != 0 || (flags & 0x04) != 0 {
+            conn.cancel()
+            connections.removeValue(forKey: connectionKey)
+        }
     }
     
     private func sendUDPResponse(sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16, payload: Data) {

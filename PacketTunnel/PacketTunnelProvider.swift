@@ -112,11 +112,24 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
     
+    private var packetCount: Int = 0
+    
     private func processPacket(_ packet: Data, protocolNumber: Int32) {
+        packetCount += 1
+        
+        if packetCount <= 10 {
+            NSLog("[PacketTunnel] 收到数据包 #\(packetCount), 长度: \(packet.count)")
+        }
+        
         guard packet.count >= 20 else { return }
         
         let version = (packet[0] >> 4) & 0x0F
-        guard version == 4 else { return }
+        guard version == 4 else {
+            if packetCount <= 5 {
+                NSLog("[PacketTunnel] 非IPv4数据包，版本: \(version)")
+            }
+            return
+        }
         
         let ihl = Int((packet[0] & 0x0F)) * 4
         guard ihl >= 20 && packet.count >= ihl else { return }
@@ -126,12 +139,23 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
         
         if protocolType == 17 {
+            if packetCount <= 5 {
+                NSLog("[PacketTunnel] UDP数据包: \(srcIP) -> \(dstIP)")
+            }
             handleUDPPacket(packet, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
             return
         }
         
-        guard protocolType == 6 else { return }
+        guard protocolType == 6 else {
+            if packetCount <= 5 {
+                NSLog("[PacketTunnel] 不支持的协议类型: \(protocolType)")
+            }
+            return
+        }
         
+        if packetCount <= 5 {
+            NSLog("[PacketTunnel] TCP数据包: \(srcIP) -> \(dstIP)")
+        }
         handleTCPPacket(packet, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
     }
     
@@ -249,9 +273,11 @@ class UDPSession {
     private let queue = DispatchQueue(label: "com.warzone.udp.session")
     private var lastActivity: Date = Date()
     private var timeoutTimer: DispatchSourceTimer?
+    private var isConnectionReady = false
+    private var pendingData: [Data] = []
     
     var isConnected: Bool {
-        return connection != nil
+        return connection != nil && isConnectionReady
     }
     
     init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
@@ -264,6 +290,8 @@ class UDPSession {
     
     func start() {
         lastActivity = Date()
+        isConnectionReady = false
+        pendingData.removeAll()
         
         let host = NWEndpoint.Host(dstIP)
         let port = NWEndpoint.Port(rawValue: dstPort)!
@@ -277,6 +305,8 @@ class UDPSession {
             switch state {
             case .ready:
                 NSLog("[UDPSession] 连接就绪: \(self.dstIP):\(self.dstPort)")
+                self.isConnectionReady = true
+                self.flushPendingData()
                 self.receiveData()
             case .failed(let error):
                 NSLog("[UDPSession] 连接失败: \(error)")
@@ -294,6 +324,13 @@ class UDPSession {
     
     func send(_ data: Data) {
         lastActivity = Date()
+        
+        if !isConnectionReady {
+            NSLog("[UDPSession] 连接未就绪，缓存数据: \(self.dstIP):\(self.dstPort)")
+            pendingData.append(data)
+            return
+        }
+        
         guard let connection = connection else { return }
         
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
@@ -301,6 +338,17 @@ class UDPSession {
                 NSLog("[UDPSession] 发送失败: \(error)")
             }
         })
+    }
+    
+    private func flushPendingData() {
+        guard !pendingData.isEmpty else { return }
+        
+        NSLog("[UDPSession] 发送缓存数据，数量: \(pendingData.count)")
+        
+        for data in pendingData {
+            send(data)
+        }
+        pendingData.removeAll()
     }
     
     private func receiveData() {
@@ -554,6 +602,7 @@ class TCPConnection {
     
     private func handleData(_ data: Data) {
         clientBuffer.append(data)
+        NSLog("[TCPConnection] 收到数据，累计: \(clientBuffer.count) 字节，目标: \(dstIP):\(dstPort)")
         
         if !isTarget {
             if let request = String(data: clientBuffer, encoding: .utf8),
@@ -567,9 +616,15 @@ class TCPConnection {
             sendFakeResponse()
         } else {
             if connection == nil {
+                NSLog("[TCPConnection] 首次连接服务器: \(dstIP):\(dstPort)")
                 connectToServer()
-            } else if let connection = connection, connection.state == .ready {
-                sendToServer(data)
+            } else if let connection = connection {
+                if connection.state == .ready {
+                    NSLog("[TCPConnection] 连接已就绪，发送数据: \(data.count) 字节")
+                    sendToServer(data)
+                } else {
+                    NSLog("[TCPConnection] 连接状态: \(connection.state)，数据将在连接就绪后发送")
+                }
             }
         }
     }

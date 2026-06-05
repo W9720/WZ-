@@ -5,8 +5,6 @@ import Foundation
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private var connections: [String: TCPConnection] = [:]
-    private var udpConnections: [String: NWConnection] = [:]
-    private let processingQueue = DispatchQueue(label: "com.warzone.packetProcessing", qos: .userInteractive, attributes: .concurrent)
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         NSLog("[PacketTunnel] 开始启动隧道...")
@@ -38,8 +36,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         NSLog("[PacketTunnel] 停止隧道，原因: \(reason.rawValue)")
         connections.values.forEach { $0.cancel() }
         connections.removeAll()
-        udpConnections.values.forEach { $0.cancel() }
-        udpConnections.removeAll()
         completionHandler()
     }
     
@@ -47,11 +43,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         packetFlow.readPackets { [weak self] packets, protocols in
             guard let self = self else { return }
             
-            self.processingQueue.async {
-                for (index, packet) in packets.enumerated() {
-                    let protocolNum = (protocols[index] as! NSNumber).int32Value
-                    self.handlePacket(packet, protocolNumber: protocolNum)
-                }
+            for (index, packet) in packets.enumerated() {
+                let protocolNum = (protocols[index] as! NSNumber).int32Value
+                self.handlePacket(packet, protocolNumber: protocolNum)
             }
             
             self.readPackets()
@@ -138,40 +132,35 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let host = NWEndpoint.Host(destIP)
         let port = NWEndpoint.Port(rawValue: destPort)!
-        let connectionKey = "\(destIP):\(destPort)"
         
-        if let existingConnection = udpConnections[connectionKey] {
-            existingConnection.send(content: payload, completion: .idempotent)
-            scheduleUDPReceive(existingConnection, sourceIP: sourceIP, sourcePort: sourcePort, destIP: destIP, destPort: destPort)
-        } else {
-            let connection = NWConnection(host: host, port: port, using: .udp)
-            connection.stateUpdateHandler = { [weak self] state in
-                guard let self = self else { return }
-                switch state {
-                case .ready:
-                    connection.send(content: payload, completion: .idempotent)
-                    self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort, destIP: destIP, destPort: destPort)
-                case .failed, .cancelled:
-                    self.udpConnections.removeValue(forKey: connectionKey)
-                default:
-                    break
-                }
-            }
-            udpConnections[connectionKey] = connection
-            connection.start(queue: .global(qos: .userInteractive))
-        }
-    }
-    
-    private func scheduleUDPReceive(_ connection: NWConnection, sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16) {
-        connection.receiveMessage { [weak self] data, context, isComplete, error in
+        let connection = NWConnection(host: host, port: port, using: .udp)
+        
+        connection.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
-            if let data = data, !data.isEmpty {
-                self.sendUDPResponse(sourceIP: destIP, sourcePort: destPort, destIP: sourceIP, destPort: sourcePort, payload: data)
-            }
-            if error == nil {
-                self.scheduleUDPReceive(connection, sourceIP: sourceIP, sourcePort: sourcePort, destIP: destIP, destPort: destPort)
+            switch state {
+            case .ready:
+                connection.send(content: payload, completion: .idempotent)
+                connection.receiveMessage { [weak self] data, _, _, error in
+                    guard let self = self else { return }
+                    if let data = data, !data.isEmpty {
+                        self.sendUDPResponse(
+                            sourceIP: destIP,
+                            sourcePort: destPort,
+                            destIP: sourceIP,
+                            destPort: sourcePort,
+                            payload: data
+                        )
+                    }
+                    connection.cancel()
+                }
+            case .failed, .cancelled:
+                break
+            default:
+                break
             }
         }
+        
+        connection.start(queue: .global())
     }
     
     private func sendUDPResponse(sourceIP: String, sourcePort: UInt16, destIP: String, destPort: UInt16, payload: Data) {
@@ -342,7 +331,7 @@ class TCPConnection {
             }
         }
         
-        connection?.start(queue: .global(qos: .userInteractive))
+        connection?.start(queue: .global())
     }
     
     private func receiveFromServer() {

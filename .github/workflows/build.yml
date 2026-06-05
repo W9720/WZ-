@@ -19,6 +19,33 @@ jobs:
         with:
           xcode-version: 15.4
 
+      - name: Clean DerivedData
+        run: rm -rf ~/Library/Developer/Xcode/DerivedData
+
+      - name: Clean Build
+        run: xcodebuild clean -project WarZoneChanger.xcodeproj -scheme WarZoneChanger -configuration Release
+
+      - name: Verify Bundle IDs
+        run: |
+          echo "=== Checking Info.plist paths ==="
+          ls -la WarZoneChanger/
+          ls -la PacketTunnel/
+          echo ""
+          echo "=== Bundle IDs ==="
+          echo "主应用Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' WarZoneChanger/Info.plist || echo 'NOT_FOUND')"
+          echo "扩展Bundle ID: $(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' PacketTunnel/Info.plist || echo 'NOT_FOUND')"
+          echo ""
+          echo "=== Project Bundle IDs ==="
+          grep -A2 "PRODUCT_BUNDLE_IDENTIFIER" WarZoneChanger.xcodeproj/project.pbxproj | head -20
+
+      - name: Verify Entitlements
+        run: |
+          echo "=== 主应用 Entitlements ==="
+          cat WarZoneChanger/WarZoneChanger.entitlements
+          echo ""
+          echo "=== 扩展 Entitlements ==="
+          cat PacketTunnel/PacketTunnel.entitlements
+
       - name: Show project info
         run: |
           xcodebuild -version
@@ -80,10 +107,12 @@ jobs:
       - name: Sign PacketTunnel extension
         run: |
           if [ -f "./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel" ]; then
-            echo "Signing extension..."
+            echo "=== Signing extension ==="
+            echo "Entitlements content:"
             cat ./PacketTunnel/PacketTunnel.entitlements
-            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel 2>&1 || { echo "Failed to sign extension"; exit 1; }
-            echo "Extension signed successfully"
+            echo ""
+            ldid -S./PacketTunnel/PacketTunnel.entitlements ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel 2>&1
+            echo "Extension signed"
           else
             echo "PacketTunnel.appex not found!"
             exit 1
@@ -91,19 +120,28 @@ jobs:
 
       - name: Sign main app with entitlements
         run: |
-          echo "Signing main app..."
+          echo "=== Signing main app ==="
+          echo "Entitlements content:"
           cat ./WarZoneChanger/WarZoneChanger.entitlements
-          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger 2>&1 || { echo "Failed to sign app"; exit 1; }
-          echo "App signed successfully"
+          echo ""
+          ldid -S./WarZoneChanger/WarZoneChanger.entitlements ./build/WarZoneChanger.app/WarZoneChanger 2>&1
+          echo "App signed"
+
+      - name: Verify signing
+        run: |
+          echo "=== Verify extension entitlements ==="
+          if [ -f "./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel" ]; then
+            ldid -e ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex/PacketTunnel 2>&1
+          fi
+          echo ""
+          echo "=== Verify main app entitlements ==="
+          ldid -e ./build/WarZoneChanger.app/WarZoneChanger 2>&1
 
       - name: Verify build structure
         run: |
           echo "=== Final build structure ==="
           ls -la ./build/WarZoneChanger.app/
           ls -la ./build/WarZoneChanger.app/PlugIns/
-          echo "=== Checking codesign ==="
-          codesign -dvv ./build/WarZoneChanger.app 2>&1 || echo "codesign check failed"
-          codesign -dvv ./build/WarZoneChanger.app/PlugIns/PacketTunnel.appex 2>&1 || echo "codesign check for extension failed"
 
       - name: Create IPA
         run: |

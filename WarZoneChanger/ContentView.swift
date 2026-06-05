@@ -397,7 +397,7 @@ struct SettingsView: View {
                                     .font(.system(size: 14))
                                     .foregroundColor(.gray)
                                 Spacer()
-                                Text(formatDate(cardInfo.createdAt))
+                                Text(formatDateWithTime(cardInfo.createdAt))
                                     .font(.system(size: 14))
                             }
                         }

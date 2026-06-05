@@ -12,13 +12,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "10.0.0.1")
         
-        // ✅ 正确：使用/32子网掩码
         let ipv4Settings = NEIPv4Settings(addresses: ["10.0.0.2"], subnetMasks: ["255.255.255.255"])
-        
-        // ✅ 正确：包含默认路由，接收所有IPv4流量
         ipv4Settings.includedRoutes = [NEIPv4Route.default()]
         
-        // ✅ 正确：排除本地和局域网流量
         ipv4Settings.excludedRoutes = [
             NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),
             NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
@@ -30,7 +26,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         settings.ipv4Settings = ipv4Settings
         
-        // ✅ 正确：配置公共DNS服务器
         let dnsSettings = NEDNSSettings(servers: ["8.8.8.8", "114.114.114.114", "223.5.5.5"])
         dnsSettings.matchDomains = [""]
         settings.dnsSettings = dnsSettings
@@ -88,13 +83,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcIP = "\(packet[12]).\(packet[13]).\(packet[14]).\(packet[15])"
         let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
         
-        // ✅ UDP处理
         if protocolType == 17 {
             handleUDPPacket(packet, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
             return
         }
         
-        // ✅ TCP处理
         guard protocolType == 6 else { return }
         
         handleTCPPacket(packet, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
@@ -115,30 +108,22 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
         
         if let session = udpSessions[key] {
-            session.write(payload, completionHandler: nil)
+            session.send(payload, completionHandler: { _ in })
             return
         }
         
-        // ✅ 使用NWUDPSession转发UDP流量
         let endpoint = NWHostEndpoint(hostname: dstIP, port: "\(dstPort)")
         let session = self.createUDPSession(to: endpoint, from: nil)
         udpSessions[key] = session
         
-        session.stateUpdateHandler = { [weak self] state in
-            if state == .failed || state == .cancelled {
-                self?.udpSessions[key] = nil
-            }
-        }
-        
-        session.setReadHandler({ [weak self] datagrams, error in
+        session.setReadHandler({ [weak self] (datagrams: [Data]?, error: Error?) in
             if let datagrams = datagrams, !datagrams.isEmpty {
                 let responses = datagrams.map { self?.buildUDPResponse($0, srcIP: dstIP, srcPort: dstPort, dstIP: srcIP, dstPort: srcPort) ?? Data() }
                 self?.packetFlow.writePackets(responses, withProtocols: [NSNumber(value: AF_INET)])
             }
         }, maxDatagrams: 32)
         
-        session.start(queue: .global())
-        session.write(payload, completionHandler: nil)
+        session.send(payload, completionHandler: { _ in })
     }
     
     private func handleTCPPacket(_ packet: Data, ipHeaderLen: Int, srcIP: String, dstIP: String) {
@@ -154,7 +139,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let connKey = "\(srcIP):\(srcPort)"
         
-        // ✅ 检查是否是目标请求（腾讯地图API）
         if (dstPort == 80 || dstPort == 8080) && !payload.isEmpty {
             if let request = String(data: payload, encoding: .utf8),
                request.contains("apis.map.qq.com") && request.contains("/ws/geocoder/v1") {
@@ -165,29 +149,30 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
         }
         
-        // ✅ 普通TCP转发
         if let conn = tcpConnections[connKey] {
             if !payload.isEmpty {
-                conn.send(content: payload, completion: nil)
+                conn.send(content: payload, completion: .contentProcessed({ _ in }))
             }
             return
         }
         
-        // ✅ 创建新的TCP连接
-        let endpoint = NWHostEndpoint(hostname: dstIP, port: "\(dstPort)")
-        let conn = NWConnection(to: endpoint, using: .tcp)
+        let tcpEndpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(dstIP), port: NWEndpoint.Port(rawValue: dstPort)!)
+        let conn = NWConnection(to: tcpEndpoint, using: .tcp)
         tcpConnections[connKey] = conn
         
-        conn.stateUpdateHandler = { [weak self] state in
+        conn.stateUpdateHandler = { [weak self] (state: NWConnection.State) in
             guard let self = self else { return }
             
             switch state {
             case .ready:
                 if let pendingData = self.pendingTCPRequests[connKey] {
-                    conn.send(content: pendingData, completion: nil)
+                    conn.send(content: pendingData, completion: .contentProcessed({ _ in }))
                     self.pendingTCPRequests[connKey] = nil
                 }
-            case .failed, .cancelled:
+            case .failed(let error):
+                NSLog("[PacketTunnel] TCP连接失败: \(error)")
+                fallthrough
+            case .cancelled:
                 self.tcpConnections[connKey] = nil
                 self.pendingTCPRequests[connKey] = nil
             default:
@@ -195,7 +180,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
         }
         
-        conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, context, isComplete, error in
+        conn.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] (data: Data?, context: NWConnection.ContentContext?, isComplete: Bool, error: Error?) in
             guard let self = self else { return }
             
             if let data = data, !data.isEmpty {
@@ -210,7 +195,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
         }
         
-        conn.start(queue: .global())
+        conn.start(queue: DispatchQueue.global())
         
         if !payload.isEmpty {
             pendingTCPRequests[connKey] = payload
@@ -223,14 +208,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcBytes = parseIP(srcIP)
         let dstBytes = parseIP(dstIP)
         
-        // IP Header
         var ipHeader = Data(count: 20)
-        ipHeader[0] = 0x45 // Version + IHL
-        ipHeader[1] = 0x00 // DSCP
+        ipHeader[0] = 0x45
+        ipHeader[1] = 0x00
         let ipLen = UInt16(20 + 8 + payload.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
-        ipHeader[6] = 0x40 // TTL
-        ipHeader[9] = 0x11 // Protocol UDP
+        ipHeader[6] = 0x40
+        ipHeader[9] = 0x11
         
         ipHeader.replaceSubrange(12..<16, with: srcBytes)
         ipHeader.replaceSubrange(16..<20, with: dstBytes)
@@ -238,7 +222,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let ipChecksum = calculateChecksum(ipHeader)
         withUnsafeBytes(of: ipChecksum.bigEndian) { ipHeader.replaceSubrange(10..<12, with: $0) }
         
-        // UDP Header
         var udpHeader = Data(count: 8)
         withUnsafeBytes(of: srcPort.bigEndian) { udpHeader.replaceSubrange(0..<2, with: $0) }
         withUnsafeBytes(of: dstPort.bigEndian) { udpHeader.replaceSubrange(2..<4, with: $0) }
@@ -258,14 +241,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcBytes = parseIP(srcIP)
         let dstBytes = parseIP(dstIP)
         
-        // IP Header
         var ipHeader = Data(count: 20)
-        ipHeader[0] = 0x45 // Version + IHL
-        ipHeader[1] = 0x00 // DSCP
+        ipHeader[0] = 0x45
+        ipHeader[1] = 0x00
         let ipLen = UInt16(20 + 20 + payload.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
-        ipHeader[6] = 0x40 // TTL
-        ipHeader[9] = 0x06 // Protocol TCP
+        ipHeader[6] = 0x40
+        ipHeader[9] = 0x06
         
         ipHeader.replaceSubrange(12..<16, with: srcBytes)
         ipHeader.replaceSubrange(16..<20, with: dstBytes)
@@ -273,7 +255,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let ipChecksum = calculateChecksum(ipHeader)
         withUnsafeBytes(of: ipChecksum.bigEndian) { ipHeader.replaceSubrange(10..<12, with: $0) }
         
-        // TCP Header (minimal)
         var tcpHeader = Data(count: 20)
         withUnsafeBytes(of: srcPort.bigEndian) { tcpHeader.replaceSubrange(0..<2, with: $0) }
         withUnsafeBytes(of: dstPort.bigEndian) { tcpHeader.replaceSubrange(2..<4, with: $0) }
@@ -281,20 +262,20 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let seqNum: UInt32 = arc4random() % 1000000
         withUnsafeBytes(of: seqNum.bigEndian) { tcpHeader.replaceSubrange(4..<8, with: $0) }
         
-        tcpHeader[12] = 0x50 // Data offset
-        tcpHeader[13] = 0x18 // Flags: PSH + ACK
+        tcpHeader[12] = 0x50
+        tcpHeader[13] = 0x18
         
         let windowSize: UInt16 = 65535
         withUnsafeBytes(of: windowSize.bigEndian) { tcpHeader.replaceSubrange(14..<16, with: $0) }
         
-        // TCP Checksum
         var pseudoHeader = Data()
         pseudoHeader.append(contentsOf: srcBytes)
         pseudoHeader.append(contentsOf: dstBytes)
         pseudoHeader.append(0x00)
         pseudoHeader.append(0x06)
         let tcpLen = UInt16(20 + payload.count)
-        withUnsafeBytes(of: tcpLen.bigEndian) { pseudoHeader.append($0) }
+        let tcpLenBytes = withUnsafeBytes(of: tcpLen.bigEndian) { Array($0) }
+        pseudoHeader.append(contentsOf: tcpLenBytes)
         
         var checksumData = pseudoHeader
         checksumData.append(tcpHeader)

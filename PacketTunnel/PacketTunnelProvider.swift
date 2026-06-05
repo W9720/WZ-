@@ -16,7 +16,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         ipv4Settings.excludedRoutes = [
             NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),
-            NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
+            NEIPv4Route(destinationAddress: "10.1.0.0", subnetMask: "255.255.0.0"),
+            NEIPv4Route(destinationAddress: "10.2.0.0", subnetMask: "255.254.0.0"),
+            NEIPv4Route(destinationAddress: "10.4.0.0", subnetMask: "255.252.0.0"),
+            NEIPv4Route(destinationAddress: "10.8.0.0", subnetMask: "255.248.0.0"),
+            NEIPv4Route(destinationAddress: "10.16.0.0", subnetMask: "255.240.0.0"),
+            NEIPv4Route(destinationAddress: "10.32.0.0", subnetMask: "255.224.0.0"),
+            NEIPv4Route(destinationAddress: "10.64.0.0", subnetMask: "255.192.0.0"),
+            NEIPv4Route(destinationAddress: "10.128.0.0", subnetMask: "255.128.0.0"),
             NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),
             NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0"),
             NEIPv4Route(destinationAddress: "224.0.0.0", subnetMask: "240.0.0.0"),
@@ -179,6 +186,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let ipLen = UInt16(20 + 20 + payload.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
         ipHeader[6] = 0x40
+        ipHeader[8] = 64
         ipHeader[9] = 0x06
         
         ipHeader.replaceSubrange(12..<16, with: srcBytes)
@@ -329,6 +337,7 @@ class UDPSession {
         let ipLen = UInt16(20 + 8 + data.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
         ipHeader[6] = 0x40
+        ipHeader[8] = 64
         ipHeader[9] = 0x11
         
         ipHeader.replaceSubrange(12..<16, with: srcBytes)
@@ -480,17 +489,19 @@ class TCPConnection {
             }
             
         case .established:
-            clientSeq = seqNum
+            let payloadLength = UInt32(payload.count)
+            clientSeq = seqNum + payloadLength
             
             if !payload.isEmpty {
                 handleData(payload)
+                sendACK(ackNum: clientSeq)
             }
             
             if fin {
                 state = .closeWait
-                sendACK()
+                sendACK(ackNum: clientSeq + 1)
                 closeServer()
-                sendFIN()
+                sendFIN(ackNum: clientSeq + 1)
             }
             
         case .closeWait:
@@ -511,7 +522,7 @@ class TCPConnection {
         case .finWait2:
             if fin {
                 state = .timeWait
-                sendACK()
+                sendACK(ackNum: clientSeq + 1)
             }
             
         default:
@@ -548,15 +559,15 @@ class TCPConnection {
         serverSeq += 1
     }
     
-    private func sendACK() {
+    private func sendACK(ackNum: UInt32) {
         let flags: UInt8 = 0x10
-        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
+        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: ackNum, payload: Data())
         packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
     }
     
-    private func sendFIN() {
+    private func sendFIN(ackNum: UInt32) {
         let flags: UInt8 = 0x11
-        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: Data())
+        let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: ackNum, payload: Data())
         packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
         serverSeq += 1
     }
@@ -648,7 +659,8 @@ class TCPConnection {
         sendToClient(responseData)
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            self?.sendFIN()
+            guard let self = self else { return }
+            self.sendFIN(ackNum: self.clientSeq)
         }
     }
     
@@ -667,10 +679,9 @@ class TCPConnection {
             let size = min(maxSize, data.count - offset)
             let chunk = data.subdata(in: offset..<offset + size)
             
-            let isLast = offset + size >= data.count
-            let flags: UInt8 = isLast ? 0x18 : 0x18
+            let flags: UInt8 = 0x18
             
-            let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq + 1, payload: chunk)
+            let packet = buildTCPPacket(flags: flags, seqNum: serverSeq, ackNum: clientSeq, payload: chunk)
             packetFlow.writePackets([packet], withProtocols: [NSNumber(value: AF_INET)])
             
             serverSeq += UInt32(chunk.count)
@@ -690,6 +701,7 @@ class TCPConnection {
         let ipLen = UInt16(20 + 20 + payload.count)
         withUnsafeBytes(of: ipLen.bigEndian) { ipHeader.replaceSubrange(2..<4, with: $0) }
         ipHeader[6] = 0x40
+        ipHeader[8] = 64
         ipHeader[9] = 0x06
         
         ipHeader.replaceSubrange(12..<16, with: srcBytes)

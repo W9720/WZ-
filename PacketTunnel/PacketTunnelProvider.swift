@@ -129,7 +129,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 while ptr != nil {
                     if let addr = ptr?.pointee.ai_addr {
                         let sockaddr_in_ptr = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0 }
-                        var addr_in = sockaddr_in_ptr.pointee.sin_addr
+                        let addr_in = sockaddr_in_ptr.pointee.sin_addr
                         if let ipCStr = inet_ntoa(addr_in) {
                             ips.insert(String(cString: ipCStr))
                         }
@@ -503,8 +503,8 @@ class TCPHandler {
         }
         
         SSLSetCertificate(ctx, [identity] as CFArray)
-        SSLSetProtocolVersionMin(ctx, .TLSv12)
-        SSLSetProtocolVersionMax(ctx, .TLSv13)
+        SSLSetProtocolVersionMin(ctx, kTLSProtocol12)
+        SSLSetProtocolVersionMax(ctx, kTLSProtocol13)
         
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         SSLSetConnection(ctx, selfPtr)
@@ -521,7 +521,7 @@ class TCPHandler {
             return noErr
         }, { conn, data, dataLen in
             let handler = Unmanaged<TCPHandler>.fromOpaque(conn).takeUnretainedValue()
-            handler.tlsOutBuffer.append(data.assumingMemoryBound(to: UInt8.self), count: dataLen)
+            handler.tlsOutBuffer.append(data.assumingMemoryBound(to: UInt8.self), count: dataLen.pointee)
             return noErr
         })
         
@@ -677,9 +677,8 @@ class TCPHandler {
         
         if isHTTPS, let ctx = sslContext, tlsHandshakeDone {
             // HTTPS: 加密响应
-            var encrypted = Data()
             var written = 0
-            _ = responseData.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
+            responseData.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
                 let status = SSLWrite(ctx, ptr.baseAddress!, responseData.count, &written)
                 logger("[TLS] SSLWrite 状态: \(status), 写入: \(written)")
             }

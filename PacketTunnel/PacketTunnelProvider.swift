@@ -23,14 +23,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         writeLog("[PacketTunnel] startTunnel 被调用")
         
-        // 生成自签名证书（用于HTTPS MITM）
-        tlsIdentity = createIdentity()
-        if tlsIdentity != nil {
-            writeLog("[TLS] 自签名证书生成成功")
-        } else {
-            writeLog("[TLS] 自签名证书生成失败!")
-        }
-        
         resolveTargetHost { [weak self] ips in
             guard let self = self else { return }
             
@@ -198,7 +190,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 dstIP: dstIP, dstPort: dstPort,
                 targetHost: targetHost, targetPath: targetPath,
                 isHTTPS: isHTTPS,
-                tlsIdentity: tlsIdentity,
+                tlsIdentity: isHTTPS ? getOrCreateIdentity() : nil,
                 logger: { [weak self] msg in self?.writeLog(msg) }
             )
             tcpConnections[key] = conn
@@ -206,6 +198,18 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         
         tcpConnections = tcpConnections.filter { !$0.value.isClosed }
+    }
+    
+    private func getOrCreateIdentity() -> (SecIdentity, SecCertificate)? {
+        if let existing = tlsIdentity { return existing }
+        let result = createIdentity()
+        tlsIdentity = result
+        if result != nil {
+            writeLog("[TLS] 自签名证书生成成功")
+        } else {
+            writeLog("[TLS] 自签名证书生成失败!")
+        }
+        return result
     }
     
     // MARK: - 自签名证书

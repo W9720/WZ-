@@ -8,11 +8,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private var targetIPs: Set<String> = []
     private var tcpConnections: [String: TCPHandler] = [:]
     private let appGroupId = "group.com.warzone.changer"
-    private var logBuffer: [String] = []
+    private let logQueue = DispatchQueue(label: "vpn.log")
     private var packetCount: Int = 0
-    private var lastLogFlush = Date()
     
-    // 硬编码的 apis.map.qq.com 常见 IP，作为DNS解析失败时的回退
+    // 硬编码的 apis.map.qq.com 常见 IP
     private let fallbackIPs: Set<String> = [
         "119.147.13.124", "119.147.13.222", "119.147.14.89",
         "183.60.15.100", "183.60.60.100", "183.60.82.100",
@@ -21,15 +20,15 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     ]
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        addLog("[PacketTunnel] 启动隧道")
+        // 第一时间写入日志，不管App Group是否可用
+        writeLog("[PacketTunnel] startTunnel 被调用")
         
         resolveTargetHost { [weak self] ips in
             guard let self = self else { return }
             
-            // 合并DNS解析结果和回退IP
             self.targetIPs = ips.union(self.fallbackIPs)
-            self.addLog("[PacketTunnel] DNS解析: \(ips)")
-            self.addLog("[PacketTunnel] 最终目标IP: \(self.targetIPs)")
+            self.writeLog("[PacketTunnel] DNS解析: \(ips)")
+            self.writeLog("[PacketTunnel] 最终目标IP共\(self.targetIPs.count)个: \(self.targetIPs)")
             
             let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "8.8.8.8")
             settings.mtu = 1400
@@ -51,14 +50,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             
             self.setTunnelNetworkSettings(settings) { error in
                 if let error = error {
-                    self.addLog("[PacketTunnel] 设置失败: \(error)")
-                    self.flushLog()
+                    self.writeLog("[PacketTunnel] 设置失败: \(error)")
                     completionHandler(error)
                     return
                 }
                 
-                self.addLog("[PacketTunnel] 隧道启动成功，路由数: \(routes.count)")
-                self.flushLog()
+                self.writeLog("[PacketTunnel] 隧道启动成功，路由数: \(routes.count)")
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.startForwarding()
@@ -69,26 +66,57 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
     
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        addLog("[PacketTunnel] 停止隧道，共处理 \(packetCount) 个数据包")
-        flushLog()
+        writeLog("[PacketTunnel] 停止，共处理\(packetCount)个包")
         tcpConnections.values.forEach { $0.close() }
         tcpConnections.removeAll()
         completionHandler()
     }
     
-    // MARK: - 日志
+    // MARK: - 日志（线程安全，双重写入）
     
-    private func addLog(_ msg: String) {
+    private func writeLog(_ msg: String) {
+        let line = "[\(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium))] \(msg)"
         NSLog(msg)
-        logBuffer.append("[\(Date())] \(msg)")
-        if logBuffer.count > 200 {
-            flushLog()
+        
+        logQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.appendToLogFile(line)
+            self.writeToUserDefaults(line)
         }
     }
     
-    private func flushLog() {
-        guard let defaults = UserDefaults(suiteName: appGroupId) else { return }
-        defaults.set(logBuffer.joined(separator: "\n"), forKey: "vpn_logs")
+    private func appendToLogFile(_ line: String) {
+        // 写入 App Group 共享文件
+        guard let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) else {
+            NSLog("[Log] App Group 不可访问!")
+            return
+        }
+        let fileURL = containerURL.appendingPathComponent("vpn_diag.log")
+        
+        if let handle = try? FileHandle(forWritingTo: fileURL) {
+            handle.seekToEndOfFile()
+            if let data = (line + "\n").data(using: .utf8) {
+                handle.write(data)
+            }
+            handle.closeFile()
+        } else {
+            // 文件不存在，创建
+            try? (line + "\n").write(to: fileURL, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    private func writeToUserDefaults(_ line: String) {
+        guard let defaults = UserDefaults(suiteName: appGroupId) else {
+            NSLog("[Log] UserDefaults 不可访问!")
+            return
+        }
+        var existing = defaults.string(forKey: "vpn_logs") ?? ""
+        existing += line + "\n"
+        // 限制长度，保留最近 10000 字符
+        if existing.count > 10000 {
+            existing = String(existing.suffix(10000))
+        }
+        defaults.set(existing, forKey: "vpn_logs")
         defaults.synchronize()
     }
     
@@ -120,7 +148,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 }
                 freeaddrinfo(result)
             } else {
-                self.addLog("[PacketTunnel] DNS解析失败，status=\(status)")
+                self.writeLog("[PacketTunnel] DNS解析失败，status=\(status)")
             }
             
             completion(ips)
@@ -151,15 +179,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         packetCount += 1
         
-        // 打印前100个包的诊断信息
-        if packetCount <= 100 || targetIPs.contains(dstIP) {
+        if packetCount <= 20 {
             let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
-            if packetCount <= 100 && packetCount % 20 == 0 {
-                addLog("[Packet] #\(packetCount) \(protoName) -> \(dstIP)")
-            }
+            writeLog("[Packet] #\(packetCount) \(protoName) -> \(dstIP)")
         }
         
-        // 只处理到目标IP的TCP流量
         guard proto == 6 else { return }
         guard targetIPs.contains(dstIP) else { return }
         
@@ -170,10 +194,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
         let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
         
-        addLog("[命中] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+        writeLog("[命中] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
         
         guard dstPort == 80 else {
-            addLog("[跳过] 非80端口: \(dstPort)")
+            writeLog("[跳过] 非80端口: \(dstPort)")
             return
         }
         
@@ -186,7 +210,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 srcIP: srcIP, srcPort: srcPort,
                 dstIP: dstIP, dstPort: dstPort,
                 targetHost: targetHost, targetPath: targetPath,
-                logger: { [weak self] msg in self?.addLog(msg) }
+                logger: { [weak self] msg in self?.writeLog(msg) }
             )
             tcpConnections[key] = conn
             conn.processPacket(packet)

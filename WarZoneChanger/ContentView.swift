@@ -440,11 +440,26 @@ struct ContentView: View {
     }
     
     private func refreshLogs() {
-        guard let defaults = UserDefaults(suiteName: "group.com.warzone.changer") else {
-            vpnLogs = "无法访问 App Group"
-            return
+        var logs = ""
+        
+        // 方式1: 从 UserDefaults 读取
+        if let defaults = UserDefaults(suiteName: "group.com.warzone.changer") {
+            if let udLogs = defaults.string(forKey: "vpn_logs"), !udLogs.isEmpty {
+                logs = udLogs
+            }
         }
-        vpnLogs = defaults.string(forKey: "vpn_logs") ?? "暂无日志"
+        
+        // 方式2: 从共享文件读取（作为回退）
+        if logs.isEmpty {
+            if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.warzone.changer") {
+                let fileURL = containerURL.appendingPathComponent("vpn_diag.log")
+                if let fileLogs = try? String(contentsOf: fileURL, encoding: .utf8), !fileLogs.isEmpty {
+                    logs = fileLogs
+                }
+            }
+        }
+        
+        vpnLogs = logs.isEmpty ? "暂无日志 — App Group 可能不可访问或扩展未运行" : logs
     }
 }
 

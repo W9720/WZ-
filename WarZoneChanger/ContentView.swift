@@ -12,6 +12,8 @@ struct ContentView: View {
     @State private var showingSettings = false
     @State private var currentAnnouncement: Announcement?
     @State private var showingAnnouncement = false
+    @State private var showingLogs = false
+    @State private var vpnLogs = ""
     
     var body: some View {
         NavigationView {
@@ -226,6 +228,50 @@ struct ContentView: View {
                             .padding(.horizontal, 16)
                         }
                         
+                        // VPN 日志查看
+                        VStack(spacing: 8) {
+                            HStack {
+                                Image(systemName: "doc.text.magnifyingglass")
+                                    .font(.system(size: 18))
+                                    .foregroundColor(.blue)
+                                Text("VPN 诊断日志")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Spacer()
+                                Button(showingLogs ? "隐藏" : "查看") {
+                                    showingLogs.toggle()
+                                    if showingLogs {
+                                        refreshLogs()
+                                    }
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(.accentColor)
+                            }
+                            
+                            if showingLogs {
+                                ScrollView {
+                                    Text(vpnLogs.isEmpty ? "暂无日志" : vpnLogs)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundColor(.primary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .frame(maxHeight: 200)
+                                .padding(8)
+                                .background(Color(UIColor.systemGray6))
+                                .cornerRadius(8)
+                                
+                                Button("刷新日志") {
+                                    refreshLogs()
+                                }
+                                .font(.system(size: 12))
+                                .foregroundColor(.accentColor)
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .padding(.horizontal, 16)
+                        
                         // 操作按钮
                         if vpnManager.isConnected {
                             Button(action: {
@@ -391,6 +437,14 @@ struct ContentView: View {
         } catch {
             vpnManager.errorMessage = error.localizedDescription
         }
+    }
+    
+    private func refreshLogs() {
+        guard let defaults = UserDefaults(suiteName: "group.com.warzone.changer") else {
+            vpnLogs = "无法访问 App Group"
+            return
+        }
+        vpnLogs = defaults.string(forKey: "vpn_logs") ?? "暂无日志"
     }
 }
 

@@ -7,14 +7,29 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private let targetPath = "/ws/geocoder/v1"
     private var targetIPs: Set<String> = []
     private var tcpConnections: [String: TCPHandler] = [:]
+    private let appGroupId = "group.com.warzone.changer"
+    private var logBuffer: [String] = []
+    private var packetCount: Int = 0
+    private var lastLogFlush = Date()
+    
+    // 硬编码的 apis.map.qq.com 常见 IP，作为DNS解析失败时的回退
+    private let fallbackIPs: Set<String> = [
+        "119.147.13.124", "119.147.13.222", "119.147.14.89",
+        "183.60.15.100", "183.60.60.100", "183.60.82.100",
+        "123.151.76.100", "123.151.77.100",
+        "61.151.229.100", "61.151.252.100"
+    ]
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        NSLog("[PacketTunnel] 启动隧道")
+        addLog("[PacketTunnel] 启动隧道")
         
         resolveTargetHost { [weak self] ips in
             guard let self = self else { return }
-            self.targetIPs = ips
-            NSLog("[PacketTunnel] 目标IP列表: \(ips)")
+            
+            // 合并DNS解析结果和回退IP
+            self.targetIPs = ips.union(self.fallbackIPs)
+            self.addLog("[PacketTunnel] DNS解析: \(ips)")
+            self.addLog("[PacketTunnel] 最终目标IP: \(self.targetIPs)")
             
             let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "8.8.8.8")
             settings.mtu = 1400
@@ -22,14 +37,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             
             let ipv4 = NEIPv4Settings(addresses: ["192.168.99.2"], subnetMasks: ["255.255.255.0"])
             
-            // 只路由目标IP的流量，其他流量走默认网络
             var routes: [NEIPv4Route] = []
-            for ip in ips {
+            for ip in self.targetIPs {
                 routes.append(NEIPv4Route(destinationAddress: ip, subnetMask: "255.255.255.255"))
-            }
-            if routes.isEmpty {
-                // 解析失败时用假IP，避免全局路由
-                routes.append(NEIPv4Route(destinationAddress: "1.2.3.4", subnetMask: "255.255.255.255"))
             }
             ipv4.includedRoutes = routes
             
@@ -41,14 +51,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             
             self.setTunnelNetworkSettings(settings) { error in
                 if let error = error {
-                    NSLog("[PacketTunnel] 设置网络失败: \(error)")
+                    self.addLog("[PacketTunnel] 设置失败: \(error)")
+                    self.flushLog()
                     completionHandler(error)
                     return
                 }
                 
+                self.addLog("[PacketTunnel] 隧道启动成功，路由数: \(routes.count)")
+                self.flushLog()
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.startForwarding()
-                    NSLog("[PacketTunnel] 隧道启动成功")
                     completionHandler(nil)
                 }
             }
@@ -56,9 +69,27 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
     
     override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
+        addLog("[PacketTunnel] 停止隧道，共处理 \(packetCount) 个数据包")
+        flushLog()
         tcpConnections.values.forEach { $0.close() }
         tcpConnections.removeAll()
         completionHandler()
+    }
+    
+    // MARK: - 日志
+    
+    private func addLog(_ msg: String) {
+        NSLog(msg)
+        logBuffer.append("[\(Date())] \(msg)")
+        if logBuffer.count > 200 {
+            flushLog()
+        }
+    }
+    
+    private func flushLog() {
+        guard let defaults = UserDefaults(suiteName: appGroupId) else { return }
+        defaults.set(logBuffer.joined(separator: "\n"), forKey: "vpn_logs")
+        defaults.synchronize()
     }
     
     // MARK: - DNS 解析
@@ -88,9 +119,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     ptr = ptr?.pointee.ai_next
                 }
                 freeaddrinfo(result)
+            } else {
+                self.addLog("[PacketTunnel] DNS解析失败，status=\(status)")
             }
             
-            NSLog("[PacketTunnel] DNS解析 \(self.targetHost) → \(ips)")
             completion(ips)
         }
     }
@@ -115,9 +147,20 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard version == 4 else { return }
         
         let proto = packet[9]
-        guard proto == 6 else { return } // 只处理 TCP
-        
         let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
+        
+        packetCount += 1
+        
+        // 打印前100个包的诊断信息
+        if packetCount <= 100 || targetIPs.contains(dstIP) {
+            let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
+            if packetCount <= 100 && packetCount % 20 == 0 {
+                addLog("[Packet] #\(packetCount) \(protoName) -> \(dstIP)")
+            }
+        }
+        
+        // 只处理到目标IP的TCP流量
+        guard proto == 6 else { return }
         guard targetIPs.contains(dstIP) else { return }
         
         let ihl = Int(packet[0] & 0x0F) * 4
@@ -127,7 +170,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
         let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
         
-        guard dstPort == 80 else { return }
+        addLog("[命中] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+        
+        guard dstPort == 80 else {
+            addLog("[跳过] 非80端口: \(dstPort)")
+            return
+        }
         
         let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
         if let conn = tcpConnections[key] {
@@ -137,13 +185,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 packetFlow: packetFlow,
                 srcIP: srcIP, srcPort: srcPort,
                 dstIP: dstIP, dstPort: dstPort,
-                targetHost: targetHost, targetPath: targetPath
+                targetHost: targetHost, targetPath: targetPath,
+                logger: { [weak self] msg in self?.addLog(msg) }
             )
             tcpConnections[key] = conn
             conn.processPacket(packet)
         }
         
-        // 清理已关闭的连接
         tcpConnections = tcpConnections.filter { !$0.value.isClosed }
     }
 }
@@ -158,6 +206,7 @@ class TCPHandler {
     let dstPort: UInt16
     let targetHost: String
     let targetPath: String
+    let logger: (String) -> Void
     
     var seq: UInt32 = arc4random()
     var ack: UInt32 = 0
@@ -167,7 +216,7 @@ class TCPHandler {
     
     enum State { case closed, synRecv, established, intercepted }
     
-    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String) {
+    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, logger: @escaping (String) -> Void) {
         self.packetFlow = packetFlow
         self.srcIP = srcIP
         self.srcPort = srcPort
@@ -175,6 +224,7 @@ class TCPHandler {
         self.dstPort = dstPort
         self.targetHost = targetHost
         self.targetPath = targetPath
+        self.logger = logger
     }
     
     func processPacket(_ pkt: Data) {
@@ -199,12 +249,13 @@ class TCPHandler {
                 ack = seqNum + 1
                 state = .synRecv
                 sendSynAck()
+                logger("[TCP] SYN: \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
             }
             
         case .synRecv:
             if ackF {
                 state = .established
-                NSLog("[TCP] 三次握手完成: \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                logger("[TCP] 握手完成: \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
             }
             
         case .established:
@@ -234,18 +285,16 @@ class TCPHandler {
         
         guard let httpStr = String(data: httpBuffer, encoding: .utf8) else { return }
         
-        // 等待 HTTP 请求头完整
         guard httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") else { return }
         
-        NSLog("[TCP] HTTP请求:\n\(httpStr.prefix(500))")
+        logger("[HTTP] 请求:\n\(httpStr.prefix(500))")
         
         if httpStr.contains(targetHost) && httpStr.contains(targetPath) {
-            NSLog("[TCP] ✅ 命中目标! 返回假响应")
+            logger("[HTTP] ✅ 命中目标! 返回假响应")
             state = .intercepted
             sendFakeResponse()
         } else {
-            // 不应该出现：我们只路由了目标IP
-            NSLog("[TCP] ⚠️ 非目标请求，关闭连接")
+            logger("[HTTP] ⚠️ 非目标请求，关闭连接")
             sendRST()
             state = .closed
             isClosed = true
@@ -294,13 +343,12 @@ class TCPHandler {
         var responseData = response.data(using: .utf8) ?? Data()
         responseData.append(bodyData)
         
-        NSLog("[TCP] 发送假响应 (\(responseData.count) bytes)")
+        logger("[HTTP] 发送假响应 (\(responseData.count) bytes) 位置: \(name) (\(adcode))")
         
         let pkt = buildTCPPacket(flags: 0x18, payload: responseData)
         packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
         seq += UInt32(responseData.count)
         
-        // 延迟发送 FIN
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
             let finPkt = self.buildTCPPacket(flags: 0x19, payload: Data())
@@ -327,7 +375,6 @@ class TCPHandler {
         ip.replaceSubrange(12..<16, with: src)
         ip.replaceSubrange(16..<20, with: dst)
         
-        // IP checksum
         let ipCheck = checksum(ip)
         withUnsafeBytes(of: ipCheck.bigEndian) { ip.replaceSubrange(10..<12, with: $0) }
         
@@ -341,7 +388,6 @@ class TCPHandler {
         let window: UInt16 = 65535
         withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
         
-        // TCP checksum (pseudo header + tcp header + payload)
         var pseudo = Data()
         pseudo.append(contentsOf: src)
         pseudo.append(contentsOf: dst)

@@ -26,24 +26,16 @@ class PacketTunnelProvider: NEAppProxyProvider {
         return false
     }
     
+    // MARK: - TCP Flow Handling
+    
     private func handleTCPFlow(_ flow: NEAppProxyTCPFlow) {
         let remoteEndpoint = flow.remoteEndpoint as? NWHostEndpoint
         let host = remoteEndpoint?.hostname ?? ""
-        let port = remoteEndpoint?.port ?? "80"
+        let port = remoteEndpoint?.port ?? ""
         
         NSLog("[AppProxy] TCP 连接: \(host):\(port)")
         
-        guard port == "80" else {
-            flow.open(withLocalEndpoint: nil) { error in
-                if let error = error {
-                    NSLog("[AppProxy] 打开连接失败: \(error)")
-                } else {
-                    self.forwardTCP(flow)
-                }
-            }
-            return
-        }
-        
+        // 打开连接到远程服务器
         flow.open(withLocalEndpoint: nil) { [weak self] error in
             guard let self = self else { return }
             
@@ -52,11 +44,18 @@ class PacketTunnelProvider: NEAppProxyProvider {
                 return
             }
             
-            self.interceptAndForward(flow)
+            // 只有端口 80 的流量才需要拦截检查
+            if port == "80" {
+                self.interceptHTTPFlow(flow)
+            } else {
+                // 其他端口直接双向转发
+                self.bidirectionalForward(flow)
+            }
         }
     }
     
-    private func interceptAndForward(_ flow: NEAppProxyTCPFlow) {
+    // 拦截 HTTP 流量
+    private func interceptHTTPFlow(_ flow: NEAppProxyTCPFlow) {
         flow.readData { [weak self] data, error in
             guard let self = self, let data = data, !data.isEmpty else {
                 if let error = error {
@@ -65,6 +64,7 @@ class PacketTunnelProvider: NEAppProxyProvider {
                 return
             }
             
+            // 尝试解析 HTTP 请求
             if let httpStr = String(data: data, encoding: .utf8) {
                 NSLog("[AppProxy] HTTP 请求:\n\(httpStr.prefix(500))")
                 
@@ -75,41 +75,69 @@ class PacketTunnelProvider: NEAppProxyProvider {
                 }
             }
             
-            self.forwardData(flow, data: data)
+            // 不是目标请求，直接转发到服务器
+            self.forwardToServer(flow, clientData: data)
         }
     }
     
-    private func forwardData(_ flow: NEAppProxyTCPFlow, data: Data) {
-        flow.write(data) { error in
+    // 转发客户端数据到服务器，并读取服务器响应回写客户端
+    private func forwardToServer(_ flow: NEAppProxyTCPFlow, clientData: Data) {
+        flow.write(clientData) { error in
             if let error = error {
-                NSLog("[AppProxy] 写入失败: \(error)")
+                NSLog("[AppProxy] 写入服务器失败: \(error)")
                 return
             }
             
-            flow.readData { [weak self] data, error in
-                guard let self = self, let data = data, !data.isEmpty else {
-                    if let error = error {
-                        NSLog("[AppProxy] 读取响应失败: \(error)")
-                    }
+            // 写入成功后，读取服务器响应
+            self.readFromServer(flow)
+        }
+    }
+    
+    // 读取服务器响应并回写客户端
+    private func readFromServer(_ flow: NEAppProxyTCPFlow) {
+        flow.readData { [weak self] serverData, error in
+            guard let self = self, let serverData = serverData, !serverData.isEmpty else {
+                if let error = error {
+                    NSLog("[AppProxy] 读取服务器响应失败: \(error)")
+                }
+                return
+            }
+            
+            // 回写给客户端
+            flow.write(serverData) { error in
+                if let error = error {
+                    NSLog("[AppProxy] 回写客户端失败: \(error)")
                     return
                 }
-                
-                flow.write(data) { _ in
-                    self.forwardData(flow, data: data)
-                }
+                // 继续读取更多数据（HTTP 响应可能分多次返回）
+                self.readFromServer(flow)
             }
         }
     }
     
-    private func forwardTCP(_ flow: NEAppProxyTCPFlow) {
+    // 双向转发（用于非 HTTP 端口）
+    private func bidirectionalForward(_ flow: NEAppProxyTCPFlow) {
         flow.readData { [weak self] data, error in
-            guard let self = self, let data = data, !data.isEmpty else { return }
-            flow.write(data) { _ in
-                self.forwardTCP(flow)
+            guard let self = self, let data = data, !data.isEmpty else {
+                if let error = error {
+                    NSLog("[AppProxy] 双向转发读取失败: \(error)")
+                }
+                return
+            }
+            
+            // 写入数据（系统自动转发到服务器）
+            flow.write(data) { error in
+                if let error = error {
+                    NSLog("[AppProxy] 双向转发写入失败: \(error)")
+                    return
+                }
+                // 继续读取
+                self.bidirectionalForward(flow)
             }
         }
     }
     
+    // 发送假响应
     private func sendFakeResponse(_ flow: NEAppProxyTCPFlow) {
         let location = LocationStore.shared.getSelectedLocation()
         let adcode = location?.adcode ?? "110101"
@@ -132,12 +160,18 @@ class PacketTunnelProvider: NEAppProxyProvider {
         flow.write(responseData) { error in
             if let error = error {
                 NSLog("[AppProxy] 发送假响应失败: \(error)")
+            } else {
+                NSLog("[AppProxy] 假响应发送成功")
             }
         }
     }
     
+    // MARK: - UDP Flow Handling
+    
     private func handleUDPFlow(_ flow: NEAppProxyUDPFlow) {
-        flow.open(withLocalEndpoint: nil) { error in
+        flow.open(withLocalEndpoint: nil) { [weak self] error in
+            guard let self = self else { return }
+            
             if let error = error {
                 NSLog("[AppProxy] UDP 打开失败: \(error)")
                 return
@@ -155,7 +189,11 @@ class PacketTunnelProvider: NEAppProxyProvider {
                 return
             }
             
-            flow.writeDatagrams(datagrams, sentBy: remoteEndpoints ?? []) { _ in
+            flow.writeDatagrams(datagrams, sentBy: remoteEndpoints ?? []) { error in
+                if let error = error {
+                    NSLog("[AppProxy] UDP 写入失败: \(error)")
+                    return
+                }
                 self.forwardUDP(flow)
             }
         }

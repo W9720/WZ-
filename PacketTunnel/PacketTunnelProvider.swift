@@ -503,23 +503,21 @@ class TCPHandler {
         }
         
         SSLSetCertificate(ctx, [identity] as CFArray)
-        SSLSetProtocolVersionMin(ctx, kTLSProtocol12)
-        SSLSetProtocolVersionMax(ctx, kTLSProtocol13)
         
         let selfPtr = Unmanaged.passUnretained(self).toOpaque()
         SSLSetConnection(ctx, selfPtr)
-        SSLSetIOFuncs(ctx, { conn, data, dataLen in
+        SSLSetIOFuncs(ctx, { (conn: SSLConnectionRef, data: UnsafeMutableRawPointer, dataLen: UnsafeMutablePointer<Int>) -> OSStatus in
             let handler = Unmanaged<TCPHandler>.fromOpaque(conn).takeUnretainedValue()
             if handler.tlsInBuffer.isEmpty {
                 dataLen.pointee = 0
                 return errSSLWouldBlock
             }
-            let readLen = min(dataLen, handler.tlsInBuffer.count)
+            let readLen = min(dataLen.pointee, handler.tlsInBuffer.count)
             handler.tlsInBuffer.copyBytes(to: data.assumingMemoryBound(to: UInt8.self), count: readLen)
             handler.tlsInBuffer.removeFirst(readLen)
             dataLen.pointee = readLen
             return noErr
-        }, { conn, data, dataLen in
+        }, { (conn: SSLConnectionRef, data: UnsafeRawPointer, dataLen: UnsafeMutablePointer<Int>) -> OSStatus in
             let handler = Unmanaged<TCPHandler>.fromOpaque(conn).takeUnretainedValue()
             handler.tlsOutBuffer.append(data.assumingMemoryBound(to: UInt8.self), count: dataLen.pointee)
             return noErr

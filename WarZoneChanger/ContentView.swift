@@ -264,6 +264,13 @@ struct ContentView: View {
                                 }
                                 .font(.system(size: 12))
                                 .foregroundColor(.accentColor)
+                                
+                                Button("一键复制") {
+                                    UIPasteboard.general.string = vpnLogs
+                                }
+                                .font(.system(size: 12))
+                                .foregroundColor(.accentColor)
+                                .disabled(vpnLogs.isEmpty || vpnLogs.hasPrefix("暂无日志"))
                             }
                         }
                         .padding(16)

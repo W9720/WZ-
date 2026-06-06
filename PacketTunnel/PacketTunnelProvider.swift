@@ -219,7 +219,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let keyParams: [String: Any] = [
             kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
             kSecAttrKeySizeInBits as String: 2048,
-            kSecAttrIsPermanent as String: false,
+            kSecAttrIsPermanent as String: true,
         ]
         var error: Unmanaged<CFError>?
         guard let privateKey = SecKeyCreateRandomKey(keyParams as CFDictionary, &error) else {
@@ -247,15 +247,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             return nil
         }
         
-        // 添加到临时 keychain 获取 identity
+        // 添加到 keychain 获取 identity
         let certAdd: [String: Any] = [
             kSecClass as String: kSecClassCertificate,
             kSecValueRef as String: certificate,
             kSecReturnPersistentRef as String: true,
         ]
         var certRef: CFTypeRef?
-        guard SecItemAdd(certAdd as CFDictionary, &certRef) == errSecSuccess else {
-            writeLog("[TLS] 添加证书到keychain失败")
+        let certStatus = SecItemAdd(certAdd as CFDictionary, &certRef)
+        guard certStatus == errSecSuccess, let certPersistentRef = certRef else {
+            writeLog("[TLS] 添加证书到keychain失败: \(certStatus)")
             return nil
         }
         
@@ -266,9 +267,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             kSecReturnPersistentRef as String: true,
         ]
         var keyRef: CFTypeRef?
-        guard SecItemAdd(keyAdd as CFDictionary, &keyRef) == errSecSuccess else {
-            SecItemDelete([kSecClass as String: kSecClassCertificate, kSecValuePersistentRef as String: certRef!] as CFDictionary)
-            writeLog("[TLS] 添加密钥到keychain失败")
+        let keyStatus = SecItemAdd(keyAdd as CFDictionary, &keyRef)
+        guard keyStatus == errSecSuccess, let keyPersistentRef = keyRef else {
+            SecItemDelete([kSecClass as String: kSecClassCertificate, kSecValuePersistentRef as String: certPersistentRef] as CFDictionary)
+            writeLog("[TLS] 添加密钥到keychain失败: \(keyStatus)")
             return nil
         }
         
@@ -276,20 +278,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let idQuery: [String: Any] = [
             kSecClass as String: kSecClassIdentity,
             kSecReturnRef as String: true,
-            kSecMatchItemList as String: [certRef!, keyRef!],
+            kSecMatchItemList as String: [certPersistentRef, keyPersistentRef],
         ]
         var identity: CFTypeRef?
         let idStatus = SecItemCopyMatching(idQuery as CFDictionary, &identity)
         
-        // 清理
-        SecItemDelete([kSecClass as String: kSecClassCertificate, kSecValuePersistentRef as String: certRef!] as CFDictionary)
-        SecItemDelete([kSecClass as String: kSecClassKey, kSecValuePersistentRef as String: keyRef!] as CFDictionary)
-        
         guard idStatus == errSecSuccess, let ident = identity else {
-            writeLog("[TLS] 获取identity失败")
+            writeLog("[TLS] 获取identity失败: \(idStatus)")
             return nil
         }
         
+        writeLog("[TLS] 证书和密钥已保存到keychain")
         return (ident as! SecIdentity, certificate)
     }
     

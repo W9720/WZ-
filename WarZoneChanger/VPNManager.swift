@@ -54,7 +54,7 @@ class VPNManager: ObservableObject {
                 vpnManager = NEAppProxyProviderManager()
                 vpnManager.localizedDescription = "战区精灵"
                 
-                let protocolConfig = NEAppProxyProviderProtocol()
+                let protocolConfig = NETunnelProviderProtocol()
                 protocolConfig.providerBundleIdentifier = "com.warzone.changer.PacketTunnel"
                 protocolConfig.serverAddress = "127.0.0.1"
                 vpnManager.protocolConfiguration = protocolConfig

@@ -1,485 +1,116 @@
 import NetworkExtension
 import Foundation
-import Network
 
-class PacketTunnelProvider: NEPacketTunnelProvider {
-    
-    private var udpSessions: [String: UDPSession] = [:]
-    private var tcpConnections: [String: TCPConnection] = [:]
-    private var cleanupTimer: DispatchSourceTimer?
+class PacketTunnelProvider: NEAppProxyProvider {
     
     private let targetHost = "apis.map.qq.com"
     private let targetPath = "/ws/geocoder/v1"
     
-    override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
-        NSLog("[PacketTunnel] 启动隧道")
-        
-        let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "8.8.8.8")
-        settings.mtu = 1400
-        settings.ipv6Settings = nil
-        
-        let ipv4Settings = NEIPv4Settings(addresses: ["192.168.99.2"], subnetMasks: ["255.255.255.0"])
-        ipv4Settings.includedRoutes = [NEIPv4Route.default()]
-        
-        ipv4Settings.excludedRoutes = [
-            NEIPv4Route(destinationAddress: "127.0.0.0", subnetMask: "255.0.0.0"),
-            NEIPv4Route(destinationAddress: "192.168.99.0", subnetMask: "255.255.255.0"),
-            NEIPv4Route(destinationAddress: "10.0.0.0", subnetMask: "255.0.0.0"),
-            NEIPv4Route(destinationAddress: "172.16.0.0", subnetMask: "255.240.0.0"),
-            NEIPv4Route(destinationAddress: "192.168.0.0", subnetMask: "255.255.0.0"),
-        ]
-        
-        settings.ipv4Settings = ipv4Settings
-        
-        let dnsSettings = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29"])
-        dnsSettings.matchDomains = [""]
-        settings.dnsSettings = dnsSettings
-        
-        setTunnelNetworkSettings(settings) { [weak self] error in
-            guard let self = self else { return }
-            
-            if let error = error {
-                NSLog("[PacketTunnel] 设置网络失败: \(error)")
-                completionHandler(error)
-                return
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.startReadingPackets()
-                self.startCleanupTimer()
-                NSLog("[PacketTunnel] 隧道启动成功")
-                completionHandler(nil)
-            }
-        }
+    override func startProxy(options: [String : Any]? = nil, completionHandler: @escaping (Error?) -> Void) {
+        NSLog("[AppProxy] 启动代理")
+        completionHandler(nil)
     }
     
-    override func stopTunnel(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
-        cleanupTimer?.cancel()
-        udpSessions.values.forEach { $0.close() }
-        tcpConnections.values.forEach { $0.close() }
+    override func stopProxy(with reason: NEProviderStopReason, completionHandler: @escaping () -> Void) {
         completionHandler()
     }
     
-    private func startReadingPackets() {
-        packetFlow.readPackets { [weak self] packets, protocols in
+    override func handleNewFlow(_ flow: NEAppProxyFlow) -> Bool {
+        if let tcpFlow = flow as? NEAppProxyTCPFlow {
+            handleTCPFlow(tcpFlow)
+            return true
+        } else if let udpFlow = flow as? NEAppProxyUDPFlow {
+            handleUDPFlow(udpFlow)
+            return true
+        }
+        return false
+    }
+    
+    private func handleTCPFlow(_ flow: NEAppProxyTCPFlow) {
+        let remoteEndpoint = flow.remoteEndpoint as? NWHostEndpoint
+        let host = remoteEndpoint?.hostname ?? ""
+        let port = remoteEndpoint?.port ?? "80"
+        
+        NSLog("[AppProxy] TCP 连接: \(host):\(port)")
+        
+        guard port == "80" else {
+            flow.open(withLocalEndpoint: nil) { error in
+                if let error = error {
+                    NSLog("[AppProxy] 打开连接失败: \(error)")
+                } else {
+                    self.forwardTCP(flow)
+                }
+            }
+            return
+        }
+        
+        flow.open(withLocalEndpoint: nil) { [weak self] error in
             guard let self = self else { return }
             
-            DispatchQueue.global().async {
-                for i in 0..<packets.count {
-                    self.processPacket(packets[i], protocolNumber: protocols[i].int32Value)
-                }
-                self.startReadingPackets()
+            if let error = error {
+                NSLog("[AppProxy] 打开连接失败: \(error)")
+                return
             }
+            
+            self.interceptAndForward(flow)
         }
     }
     
-    private func processPacket(_ packet: Data, protocolNumber: Int32) {
-        guard packet.count >= 20 else { return }
-        let version = (packet[0] >> 4) & 0x0F
-        guard version == 4 else { return }
-        
-        let ihl = Int(packet[0] & 0x0F) * 4
-        let proto = packet[9]
-        let srcIP = "\(packet[12]).\(packet[13]).\(packet[14]).\(packet[15])"
-        let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
-        
-        if proto == 17 {
-            handleUDPPacket(packet, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
-        } else if proto == 6 {
-            handleTCPPacket(packet, ipHeaderLen: ihl, srcIP: srcIP, dstIP: dstIP)
+    private func interceptAndForward(_ flow: NEAppProxyTCPFlow) {
+        flow.readData { [weak self] data, error in
+            guard let self = self, let data = data, !data.isEmpty else {
+                if let error = error {
+                    NSLog("[AppProxy] 读取失败: \(error)")
+                }
+                return
+            }
+            
+            if let httpStr = String(data: data, encoding: .utf8) {
+                NSLog("[AppProxy] HTTP 请求:\n\(httpStr.prefix(500))")
+                
+                if httpStr.contains(self.targetHost) && httpStr.contains(self.targetPath) {
+                    NSLog("[AppProxy] 命中目标: \(self.targetHost)\(self.targetPath)")
+                    self.sendFakeResponse(flow)
+                    return
+                }
+            }
+            
+            self.forwardData(flow, data: data)
         }
     }
     
-    private func handleUDPPacket(_ packet: Data, ipHeaderLen: Int, srcIP: String, dstIP: String) {
-        guard packet.count >= ipHeaderLen + 8 else { return }
-        let srcPort = UInt16(packet[ipHeaderLen]) << 8 | UInt16(packet[ipHeaderLen+1])
-        let dstPort = UInt16(packet[ipHeaderLen+2]) << 8 | UInt16(packet[ipHeaderLen+3])
-        let payload = packet.subdata(in: ipHeaderLen+8..<packet.count)
-        
-        let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
-        if let s = udpSessions[key] {
-            s.send(payload)
-            return
-        }
-        
-        let s = UDPSession(srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, packetFlow: packetFlow)
-        udpSessions[key] = s
-        s.start()
-        s.send(payload)
-    }
-    
-    private func handleTCPPacket(_ packet: Data, ipHeaderLen: Int, srcIP: String, dstIP: String) {
-        guard packet.count >= ipHeaderLen + 20 else { return }
-        let srcPort = UInt16(packet[ipHeaderLen]) << 8 | UInt16(packet[ipHeaderLen+1])
-        let dstPort = UInt16(packet[ipHeaderLen+2]) << 8 | UInt16(packet[ipHeaderLen+3])
-        let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
-        
-        if let c = tcpConnections[key] {
-            c.processPacket(packet)
-            return
-        }
-        
-        let c = TCPConnection(
-            packetFlow: packetFlow,
-            srcIP: srcIP, srcPort: srcPort,
-            dstIP: dstIP, dstPort: dstPort,
-            targetHost: targetHost, targetPath: targetPath
-        )
-        tcpConnections[key] = c
-        c.processPacket(packet)
-    }
-    
-    private func startCleanupTimer() {
-        cleanupTimer = DispatchSource.makeTimerSource(queue: .global())
-        cleanupTimer?.schedule(deadline: .now(), repeating: 60)
-        cleanupTimer?.setEventHandler { [weak self] in
-            guard let self = self else { return }
-            self.udpSessions = self.udpSessions.filter { $0.value.isConnected }
-            self.tcpConnections = self.tcpConnections.filter { $0.value.isConnected }
-        }
-        cleanupTimer?.resume()
-    }
-}
-
-class UDPSession {
-    let srcIP: String
-    let srcPort: UInt16
-    let dstIP: String
-    let dstPort: UInt16
-    let packetFlow: NEPacketTunnelFlow
-    var connection: NWConnection?
-    let queue = DispatchQueue(label: "udp.session")
-    
-    var isConnected: Bool {
-        connection?.state == .ready
-    }
-    
-    init(srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, packetFlow: NEPacketTunnelFlow) {
-        self.srcIP = srcIP
-        self.srcPort = srcPort
-        self.dstIP = dstIP
-        self.dstPort = dstPort
-        self.packetFlow = packetFlow
-    }
-    
-    func start() {
-        let params = NWParameters.udp
-        params.allowLocalEndpointReuse = true
-        connection = NWConnection(
-            host: .init(dstIP),
-            port: .init(rawValue: dstPort)!,
-            using: params
-        )
-        
-        connection?.stateUpdateHandler = { [weak self] st in
-            guard let self = self else { return }
-            if st == .ready { self.recv() }
-        }
-        
-        connection?.start(queue: queue)
-    }
-    
-    func send(_ data: Data) {
-        guard isConnected else { return }
-        connection?.send(content: data, completion: .idempotent)
-    }
-    
-    func recv() {
-        connection?.receiveMessage { [weak self] data, _, _, _ in
-            guard let self = self, let d = data, !d.isEmpty else { return }
-            self.sendBack(d)
-            self.recv()
-        }
-    }
-    
-    func sendBack(_ data: Data) {
-        let src = parseIP(dstIP)
-        let dst = parseIP(srcIP)
-        
-        var ip = Data(count: 20)
-        ip[0] = 0x45
-        ip[1] = 0x00
-        let total = UInt16(20 + 8 + data.count)
-        withUnsafeBytes(of: total.bigEndian) { ip.replaceSubrange(2..<4, with: $0) }
-        ip[8] = 64
-        ip[9] = 0x11
-        ip.replaceSubrange(12..<16, with: src)
-        ip.replaceSubrange(16..<20, with: dst)
-        
-        let ipCheck = checksum(ip)
-        withUnsafeBytes(of: ipCheck.bigEndian) { ip.replaceSubrange(10..<12, with: $0) }
-        
-        var udp = Data(count: 8)
-        withUnsafeBytes(of: dstPort.bigEndian) { udp.replaceSubrange(0..<2, with: $0) }
-        withUnsafeBytes(of: srcPort.bigEndian) { udp.replaceSubrange(2..<4, with: $0) }
-        let udpLen = UInt16(8 + data.count)
-        withUnsafeBytes(of: udpLen.bigEndian) { udp.replaceSubrange(4..<6, with: $0) }
-        
-        var pkt = Data()
-        pkt.append(ip)
-        pkt.append(udp)
-        pkt.append(data)
-        
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
-    }
-    
-    func parseIP(_ s: String) -> [UInt8] {
-        let p = s.components(separatedBy: ".")
-        guard p.count == 4 else { return [0, 0, 0, 0] }
-        return p.compactMap { UInt8($0) }
-    }
-    
-    func checksum(_ data: Data) -> UInt16 {
-        var sum: UInt32 = 0
-        var i = 0
-        let c = data.count
-        while i < c {
-            let v = i + 1 < c ? UInt32(data[i]) << 8 | UInt32(data[i + 1]) : UInt32(data[i]) << 8
-            sum += v
-            i += 2
-        }
-        while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16) }
-        return ~UInt16(sum)
-    }
-    
-    func close() {
-        connection?.cancel()
-    }
-}
-
-class TCPConnection {
-    let packetFlow: NEPacketTunnelFlow
-    let srcIP: String
-    let srcPort: UInt16
-    let dstIP: String
-    let dstPort: UInt16
-    var connection: NWConnection?
-    let queue = DispatchQueue(label: "tcp.connection")
-    
-    let targetHost: String
-    let targetPath: String
-    
-    var isConnected: Bool {
-        connection?.state == .ready
-    }
-    
-    var seq: UInt32 = arc4random()
-    var ack: UInt32 = 0
-    
-    enum State { case closed, synRecv, established, intercepting }
-    var state: State = .closed
-    
-    var clientBuffer = Data()
-    var serverBuffer = Data()
-    var httpRequestParsed = false
-    var shouldIntercept = false
-    
-    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String) {
-        self.packetFlow = packetFlow
-        self.srcIP = srcIP
-        self.srcPort = srcPort
-        self.dstIP = dstIP
-        self.dstPort = dstPort
-        self.targetHost = targetHost
-        self.targetPath = targetPath
-    }
-    
-    func processPacket(_ pkt: Data) {
-        guard pkt.count >= 40 else { return }
-        let tcpOff = Int(pkt[0] & 0x0F) * 4
-        guard pkt.count >= tcpOff + 20 else { return }
-        
-        let seqNum: UInt32 = pkt.subdata(in: tcpOff + 4..<tcpOff + 8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-        let flags = pkt[tcpOff + 13]
-        
-        let syn = (flags & 0x02) != 0
-        let ackF = (flags & 0x10) != 0
-        let fin = (flags & 0x01) != 0
-        let rst = (flags & 0x04) != 0
-        
-        let tcpHdrLen = Int((flags >> 4) & 0x0F) * 4
-        let payloadOffset = tcpOff + tcpHdrLen
-        let payload = pkt.count > payloadOffset ? pkt.subdata(in: payloadOffset..<pkt.count) : Data()
-        
-        if state == .closed, syn {
-            ack = seqNum + 1
-            state = .synRecv
-            sendSynAck()
-        } else if state == .synRecv, ackF {
-            state = .established
-            connect()
-        } else if state == .established, !payload.isEmpty {
-            ack = seqNum + UInt32(payload.count)
-            sendACK()
-            handleClientData(payload)
-        } else if state == .intercepting, !payload.isEmpty {
-            ack = seqNum + UInt32(payload.count)
-            sendACK()
-        } else if fin {
-            ack = seqNum + 1
-            sendACK()
-            sendFin()
-        } else if rst {
-            close()
-        }
-    }
-    
-    func sendSynAck() {
-        let ip = buildIP(src: parseIP(dstIP), dst: parseIP(srcIP), proto: 6, len: 40)
-        var tcp = Data(count: 20)
-        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
-        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
-        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
-        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
-        tcp[12] = 0x50
-        tcp[13] = 0x12
-        let window: UInt16 = 65535
-        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
-        
-        var full = Data()
-        full.append(ip)
-        full.append(tcp)
-        packetFlow.writePackets([full], withProtocols: [AF_INET as NSNumber])
-        seq += 1
-    }
-    
-    func sendACK() {
-        let ip = buildIP(src: parseIP(dstIP), dst: parseIP(srcIP), proto: 6, len: 40)
-        var tcp = Data(count: 20)
-        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
-        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
-        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
-        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
-        tcp[12] = 0x50
-        tcp[13] = 0x10
-        let window: UInt16 = 65535
-        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
-        
-        var full = Data()
-        full.append(ip)
-        full.append(tcp)
-        packetFlow.writePackets([full], withProtocols: [AF_INET as NSNumber])
-    }
-    
-    func sendFin() {
-        let ip = buildIP(src: parseIP(dstIP), dst: parseIP(srcIP), proto: 6, len: 40)
-        var tcp = Data(count: 20)
-        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
-        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
-        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
-        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
-        tcp[12] = 0x50
-        tcp[13] = 0x11
-        let window: UInt16 = 65535
-        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
-        
-        var full = Data()
-        full.append(ip)
-        full.append(tcp)
-        packetFlow.writePackets([full], withProtocols: [AF_INET as NSNumber])
-        seq += 1
-    }
-    
-    func connect() {
-        guard dstPort == 80 else {
-            establishRealConnection()
-            return
-        }
-        establishRealConnection()
-    }
-    
-    func establishRealConnection() {
-        let opt = NWProtocolTCP.Options()
-        opt.noDelay = true
-        let params = NWParameters(tls: nil, tcp: opt)
-        params.allowLocalEndpointReuse = true
-        
-        connection = NWConnection(
-            host: .init(dstIP),
-            port: .init(rawValue: dstPort)!,
-            using: params
-        )
-        
-        connection?.stateUpdateHandler = { [weak self] st in
-            guard let self = self else { return }
-            if st == .ready { self.recvFromServer() }
-        }
-        
-        connection?.start(queue: queue)
-    }
-    
-    func handleClientData(_ data: Data) {
-        if dstPort != 80 {
-            forwardToServer(data)
-            return
-        }
-        
-        clientBuffer.append(data)
-        
-        if !httpRequestParsed {
-            if let httpStr = String(data: clientBuffer, encoding: .utf8) {
-                if httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") {
-                    httpRequestParsed = true
-                    
-                    if httpStr.contains(targetHost) && httpStr.contains(targetPath) {
-                        NSLog("[TCP] 命中目标: \(targetHost)\(targetPath)")
-                        shouldIntercept = true
-                        state = .intercepting
-                        connection?.cancel()
-                        connection = nil
-                        
-                        DispatchQueue.global().asyncAfter(deadline: .now() + 0.1) { [weak self] in
-                            self?.sendFakeResponse()
-                        }
-                        return
+    private func forwardData(_ flow: NEAppProxyTCPFlow, data: Data) {
+        flow.write(data) { error in
+            if let error = error {
+                NSLog("[AppProxy] 写入失败: \(error)")
+                return
+            }
+            
+            flow.readData { [weak self] data, error in
+                guard let self = self, let data = data, !data.isEmpty else {
+                    if let error = error {
+                        NSLog("[AppProxy] 读取响应失败: \(error)")
                     }
+                    return
+                }
+                
+                flow.write(data) { _ in
+                    self.forwardData(flow, data: data)
                 }
             }
         }
-        
-        if !shouldIntercept {
-            forwardToServer(data)
-        }
     }
     
-    func forwardToServer(_ data: Data) {
-        guard let conn = connection, conn.state == .ready else { return }
-        conn.send(content: data, completion: .idempotent)
-    }
-    
-    func recvFromServer() {
-        connection?.receive(minimumIncompleteLength: 1, maximumLength: 1400) { [weak self] data, _, _, _ in
-            guard let self = self else { return }
-            if let d = data, !d.isEmpty {
-                self.sendBackToClient(d)
-            }
-            if self.connection?.state == .ready {
-                self.recvFromServer()
+    private func forwardTCP(_ flow: NEAppProxyTCPFlow) {
+        flow.readData { [weak self] data, error in
+            guard let self = self, let data = data, !data.isEmpty else { return }
+            flow.write(data) { _ in
+                self.forwardTCP(flow)
             }
         }
     }
     
-    func sendBackToClient(_ data: Data) {
-        let ip = buildIP(src: parseIP(dstIP), dst: parseIP(srcIP), proto: 6, len: 20 + 20 + data.count)
-        var tcp = Data(count: 20)
-        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
-        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
-        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
-        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
-        tcp[12] = 0x50
-        tcp[13] = 0x18
-        let window: UInt16 = 65535
-        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
-        
-        var pkt = Data()
-        pkt.append(ip)
-        pkt.append(tcp)
-        pkt.append(data)
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
-        seq += UInt32(data.count)
-    }
-    
-    func sendFakeResponse() {
+    private func sendFakeResponse(_ flow: NEAppProxyTCPFlow) {
         let location = LocationStore.shared.getSelectedLocation()
         let adcode = location?.adcode ?? "110101"
         let name = location?.name ?? "东城区"
@@ -496,44 +127,37 @@ class TCPConnection {
         var responseData = response.data(using: .utf8) ?? Data()
         responseData.append(bodyData)
         
-        NSLog("[TCP] 发送假响应，长度: \(responseData.count)")
-        sendBackToClient(responseData)
+        NSLog("[AppProxy] 发送假响应，长度: \(responseData.count)")
         
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.sendFin()
+        flow.write(responseData) { error in
+            if let error = error {
+                NSLog("[AppProxy] 发送假响应失败: \(error)")
+            }
         }
     }
     
-    func buildIP(src: [UInt8], dst: [UInt8], proto: UInt8, len: Int) -> Data {
-        var ip = Data(count: 20)
-        ip[0] = 0x45
-        ip[1] = 0x00
-        withUnsafeBytes(of: UInt16(len).bigEndian) { ip.replaceSubrange(2..<4, with: $0) }
-        ip[8] = 64
-        ip[9] = proto
-        ip.replaceSubrange(12..<16, with: src)
-        ip.replaceSubrange(16..<20, with: dst)
-        
-        var sum: UInt32 = 0
-        var i = 0
-        while i < 20 {
-            let v = i + 1 < 20 ? UInt32(ip[i]) << 8 | UInt32(ip[i + 1]) : UInt32(ip[i]) << 8
-            sum += v
-            i += 2
+    private func handleUDPFlow(_ flow: NEAppProxyUDPFlow) {
+        flow.open(withLocalEndpoint: nil) { error in
+            if let error = error {
+                NSLog("[AppProxy] UDP 打开失败: \(error)")
+                return
+            }
+            self.forwardUDP(flow)
         }
-        while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16) }
-        let cs = ~UInt16(sum)
-        withUnsafeBytes(of: cs.bigEndian) { ip.replaceSubrange(10..<12, with: $0) }
-        return ip
     }
     
-    func parseIP(_ s: String) -> [UInt8] {
-        let p = s.components(separatedBy: ".")
-        guard p.count == 4 else { return [0, 0, 0, 0] }
-        return p.compactMap { UInt8($0) }
-    }
-    
-    func close() {
-        connection?.cancel()
+    private func forwardUDP(_ flow: NEAppProxyUDPFlow) {
+        flow.readDatagrams { [weak self] datagrams, remoteEndpoints, error in
+            guard let self = self, let datagrams = datagrams, !datagrams.isEmpty else {
+                if let error = error {
+                    NSLog("[AppProxy] UDP 读取失败: \(error)")
+                }
+                return
+            }
+            
+            flow.writeDatagrams(datagrams, sentBy: remoteEndpoints ?? []) { _ in
+                self.forwardUDP(flow)
+            }
+        }
     }
 }

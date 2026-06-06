@@ -8,13 +8,13 @@ class VPNManager: ObservableObject {
     @Published var errorMessage: String?
     @Published var isConnecting = false
     
-    private var vpnManager: NETunnelProviderManager?
+    private var vpnManager: NEAppProxyProviderManager?
     
     private init() {}
     
     func checkStatus() {
         errorMessage = nil
-        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
+        NEAppProxyProviderManager.loadAllFromPreferences { [weak self] managers, error in
             guard let self = self else { return }
             
             if let error = error {
@@ -35,7 +35,7 @@ class VPNManager: ObservableObject {
         errorMessage = nil
         isConnecting = true
         
-        NETunnelProviderManager.loadAllFromPreferences { [weak self] managers, error in
+        NEAppProxyProviderManager.loadAllFromPreferences { [weak self] managers, error in
             guard let self = self else { return }
             
             if let error = error {
@@ -47,16 +47,16 @@ class VPNManager: ObservableObject {
                 return
             }
             
-            let vpnManager: NETunnelProviderManager
+            let vpnManager: NEAppProxyProviderManager
             if let existing = managers?.first {
                 vpnManager = existing
             } else {
-                vpnManager = NETunnelProviderManager()
+                vpnManager = NEAppProxyProviderManager()
                 vpnManager.localizedDescription = "战区精灵"
                 
-                let protocolConfig = NETunnelProviderProtocol()
+                let protocolConfig = NEAppProxyProviderProtocol()
                 protocolConfig.providerBundleIdentifier = "com.warzone.changer.PacketTunnel"
-                protocolConfig.serverAddress = "10.0.0.1"
+                protocolConfig.serverAddress = "127.0.0.1"
                 vpnManager.protocolConfiguration = protocolConfig
             }
             

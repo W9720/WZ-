@@ -407,7 +407,8 @@ class TLSEngine {
         
         // AES-CBC 加密
         let ivCopy = iv
-        var encrypted = Data(count: toEncrypt.count + blockSize)
+        let encryptBufferSize = toEncrypt.count + blockSize
+        var encrypted = Data(count: encryptBufferSize)
         var bytesEncrypted = 0
         let status = encrypted.withUnsafeMutableBytes { encPtr in
             toEncrypt.withUnsafeBytes { plainPtr in
@@ -419,7 +420,7 @@ class TLSEngine {
                                 keyPtr.baseAddress!, kCCKeySizeAES128,
                                 ivPtr.baseAddress!,
                                 plainPtr.baseAddress!, toEncrypt.count,
-                                encPtr.baseAddress!, encrypted.count,
+                                encPtr.baseAddress!, encryptBufferSize,
                                 &bytesEncrypted)
                     }
                 }
@@ -451,7 +452,8 @@ class TLSEngine {
     private func decryptRecord(_ payload: Data, key: Data, iv: Data, macKey: Data, seq: inout UInt64) -> Data? {
         // AES-CBC 解密
         let blockSize = 16
-        var decrypted = Data(count: payload.count + blockSize)
+        let decryptBufferSize = payload.count + blockSize
+        var decrypted = Data(count: decryptBufferSize)
         var bytesDecrypted = 0
         let status = decrypted.withUnsafeMutableBytes { decPtr in
             payload.withUnsafeBytes { encPtr in
@@ -463,7 +465,7 @@ class TLSEngine {
                                 keyPtr.baseAddress!, kCCKeySizeAES128,
                                 ivPtr.baseAddress!,
                                 encPtr.baseAddress!, payload.count,
-                                decPtr.baseAddress!, decrypted.count,
+                                decPtr.baseAddress!, decryptBufferSize,
                                 &bytesDecrypted)
                     }
                 }

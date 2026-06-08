@@ -12,6 +12,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private let logQueue = DispatchQueue(label: "vpn.log")
     private var packetCount: Int = 0
     private var tlsIdentity: (SecIdentity, SecCertificate)?
+    private var tlsCertData: Data?         // X.509 DER 证书数据
+    private var tlsPrivateKey: SecKey?     // RSA 私钥
     
     private let fallbackIPs: Set<String> = [
         "119.147.13.124", "119.147.13.222", "119.147.14.89",
@@ -201,13 +203,15 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             conn.processPacket(packet)
         } else {
             let isHTTPS = (dstPort == 443)
+            let tls = isHTTPS ? getOrCreateTLS() : nil
             let conn = TCPHandler(
                 packetFlow: packetFlow,
                 srcIP: srcIP, srcPort: srcPort,
                 dstIP: dstIP, dstPort: dstPort,
                 targetHost: targetHost, targetPath: targetPath,
                 isHTTPS: isHTTPS,
-                tlsIdentity: isHTTPS ? getOrCreateIdentity() : nil,
+                tlsPrivateKey: tls?.privateKey,
+                tlsCertData: tls?.certData,
                 logger: { [weak self] msg in self?.writeLog(msg) }
             )
             tcpConnections[key] = conn
@@ -217,97 +221,45 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         tcpConnections = tcpConnections.filter { !$0.value.isClosed }
     }
     
-    private func getOrCreateIdentity() -> (SecIdentity, SecCertificate)? {
-        if let existing = tlsIdentity { return existing }
+    private func getOrCreateTLS() -> (privateKey: SecKey, certData: Data)? {
+        if let key = tlsPrivateKey, let cert = tlsCertData { return (key, cert) }
         writeLog("[TLS] 开始生成自签名证书...")
-        let result = createIdentity()
-        tlsIdentity = result
-        if result != nil {
+        let result = createTLSCertificate()
+        if let (key, certData) = result {
+            tlsPrivateKey = key
+            tlsCertData = certData
             writeLog("[TLS] ✅ 自签名证书生成成功")
+            return (key, certData)
         } else {
             writeLog("[TLS] ❌ 自签名证书生成失败!")
+            return nil
         }
-        return result
     }
     
-    // MARK: - 自签名证书
-    
-    private func createIdentity() -> (SecIdentity, SecCertificate)? {
-        // 生成 RSA 密钥对
+    private func createTLSCertificate() -> (SecKey, Data)? {
         let keyParams: [String: Any] = [
             kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
             kSecAttrKeySizeInBits as String: 2048,
-            kSecAttrIsPermanent as String: true,
+            kSecAttrIsPermanent as String: false,
         ]
         var error: Unmanaged<CFError>?
         guard let privateKey = SecKeyCreateRandomKey(keyParams as CFDictionary, &error) else {
-            writeLog("[TLS] 密钥生成失败")
+            writeLog("[TLS] 密钥生成失败: \(error?.takeRetainedValue().localizedDescription ?? "?")")
             return nil
         }
         guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
             writeLog("[TLS] 获取公钥失败")
             return nil
         }
-        
-        // 构建 X.509 证书
         guard let pubKeyData = SecKeyCopyExternalRepresentation(publicKey, &error) as Data? else {
             writeLog("[TLS] 导出公钥失败")
             return nil
         }
-        
         guard let certData = buildX509Certificate(publicKeyData: pubKeyData, privateKey: privateKey) else {
             writeLog("[TLS] 构建证书失败")
             return nil
         }
-        
-        guard let certificate = SecCertificateCreateWithData(nil, certData as CFData) else {
-            writeLog("[TLS] 创建证书对象失败")
-            return nil
-        }
-        
-        // 添加到 keychain 获取 identity
-        let certAdd: [String: Any] = [
-            kSecClass as String: kSecClassCertificate,
-            kSecValueRef as String: certificate,
-            kSecReturnPersistentRef as String: true,
-        ]
-        var certRef: CFTypeRef?
-        let certStatus = SecItemAdd(certAdd as CFDictionary, &certRef)
-        guard certStatus == errSecSuccess, let certPersistentRef = certRef else {
-            writeLog("[TLS] 添加证书到keychain失败: \(certStatus)")
-            return nil
-        }
-        
-        let keyAdd: [String: Any] = [
-            kSecClass as String: kSecClassKey,
-            kSecValueRef as String: privateKey,
-            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
-            kSecReturnPersistentRef as String: true,
-        ]
-        var keyRef: CFTypeRef?
-        let keyStatus = SecItemAdd(keyAdd as CFDictionary, &keyRef)
-        guard keyStatus == errSecSuccess, let keyPersistentRef = keyRef else {
-            SecItemDelete([kSecClass as String: kSecClassCertificate, kSecValuePersistentRef as String: certPersistentRef] as CFDictionary)
-            writeLog("[TLS] 添加密钥到keychain失败: \(keyStatus)")
-            return nil
-        }
-        
-        // 获取 identity
-        let idQuery: [String: Any] = [
-            kSecClass as String: kSecClassIdentity,
-            kSecReturnRef as String: true,
-            kSecMatchItemList as String: [certPersistentRef, keyPersistentRef],
-        ]
-        var identity: CFTypeRef?
-        let idStatus = SecItemCopyMatching(idQuery as CFDictionary, &identity)
-        
-        guard idStatus == errSecSuccess, let ident = identity else {
-            writeLog("[TLS] 获取identity失败: \(idStatus)")
-            return nil
-        }
-        
-        writeLog("[TLS] 证书和密钥已保存到keychain")
-        return (ident as! SecIdentity, certificate)
+        return (privateKey, certData)
     }
     
     private func buildX509Certificate(publicKeyData: Data, privateKey: SecKey) -> Data? {
@@ -401,7 +353,8 @@ class TCPHandler {
     let targetHost: String
     let targetPath: String
     let isHTTPS: Bool
-    let tlsIdentity: (SecIdentity, SecCertificate)?
+    let tlsPrivateKey: SecKey?
+    let tlsCertData: Data?
     let logger: (String) -> Void
     
     var seq: UInt32 = arc4random()
@@ -410,15 +363,14 @@ class TCPHandler {
     var httpBuffer = Data()
     var isClosed = false
     
-    // TLS
-    private var sslContext: SSLContext?
+    // 纯 Swift TLS 引擎（不依赖 keychain）
+    private var tlsEngine: TLSEngine?
     private var tlsInBuffer = Data()
-    private var tlsOutBuffer = Data()
     private var tlsHandshakeDone = false
     
     enum State { case closed, synRecv, established, tlsHandshake, tlsEstablished, intercepted }
     
-    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, isHTTPS: Bool, tlsIdentity: (SecIdentity, SecCertificate)?, logger: @escaping (String) -> Void) {
+    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, isHTTPS: Bool, tlsPrivateKey: SecKey?, tlsCertData: Data?, logger: @escaping (String) -> Void) {
         self.packetFlow = packetFlow
         self.srcIP = srcIP
         self.srcPort = srcPort
@@ -427,7 +379,8 @@ class TCPHandler {
         self.targetHost = targetHost
         self.targetPath = targetPath
         self.isHTTPS = isHTTPS
-        self.tlsIdentity = tlsIdentity
+        self.tlsPrivateKey = tlsPrivateKey
+        self.tlsCertData = tlsCertData
         self.logger = logger
     }
     
@@ -462,7 +415,7 @@ class TCPHandler {
                 logger("[TCP] 握手完成: \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                 
                 if isHTTPS {
-                    startTLSHandshake()
+                    initTLSEngine()
                 }
             }
             
@@ -494,8 +447,7 @@ class TCPHandler {
             } else if !payload.isEmpty {
                 ack = seqNum + UInt32(payload.count)
                 sendACK()
-                tlsInBuffer.append(payload)
-                readDecryptedHTTP()
+                feedTLSPayload(payload)
             }
             
         case .intercepted:
@@ -505,133 +457,101 @@ class TCPHandler {
         }
     }
     
-    // MARK: - TLS
+    // MARK: - TLS (纯 Swift TLSEngine)
     
-    private func startTLSHandshake() {
-        guard let (identity, _) = tlsIdentity else {
+    private func initTLSEngine() {
+        guard let privateKey = tlsPrivateKey, let certData = tlsCertData else {
             logger("[TLS] 无证书，关闭连接")
             sendRST()
             state = .closed; isClosed = true
             return
         }
         
-        sslContext = SSLCreateContext(nil, .serverSide, .streamType)
-        guard let ctx = sslContext else {
-            logger("[TLS] 创建SSLContext失败")
+        guard let certificate = SecCertificateCreateWithData(nil, certData as CFData) else {
+            logger("[TLS] 创建证书对象失败")
             sendRST()
             state = .closed; isClosed = true
             return
         }
         
-        SSLSetCertificate(ctx, [identity] as CFArray)
-        
-        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
-        SSLSetConnection(ctx, selfPtr)
-        SSLSetIOFuncs(ctx, { (conn: SSLConnectionRef, data: UnsafeMutableRawPointer, dataLen: UnsafeMutablePointer<Int>) -> OSStatus in
-            let handler = Unmanaged<TCPHandler>.fromOpaque(conn).takeUnretainedValue()
-            if handler.tlsInBuffer.isEmpty {
-                dataLen.pointee = 0
-                return errSSLWouldBlock
-            }
-            let readLen = min(dataLen.pointee, handler.tlsInBuffer.count)
-            handler.tlsInBuffer.copyBytes(to: data.assumingMemoryBound(to: UInt8.self), count: readLen)
-            handler.tlsInBuffer.removeFirst(readLen)
-            dataLen.pointee = readLen
-            return noErr
-        }, { (conn: SSLConnectionRef, data: UnsafeRawPointer, dataLen: UnsafeMutablePointer<Int>) -> OSStatus in
-            let handler = Unmanaged<TCPHandler>.fromOpaque(conn).takeUnretainedValue()
-            handler.tlsOutBuffer.append(data.assumingMemoryBound(to: UInt8.self), count: dataLen.pointee)
-            return noErr
-        })
-        
-        let status = SSLHandshake(ctx)
-        logger("[TLS] 握手状态: \(status)")
-        
-        if !tlsOutBuffer.isEmpty {
-            let outData = tlsOutBuffer
-            tlsOutBuffer.removeAll()
-            sendTLSData(outData)
-            logger("[TLS] 发送握手数据 \(outData.count) bytes")
-        }
-        
-        if status == noErr {
-            logger("[TLS] ✅ 握手成功!")
-            tlsHandshakeComplete()
-        } else if status == errSSLWouldBlock {
-            logger("[TLS] 等待更多客户端数据...")
-        } else {
-            logger("[TLS] ❌ 握手失败: \(status)")
+        guard let engine = TLSEngine(privateKey: privateKey, certificate: certificate, certData: certData) else {
+            logger("[TLS] 创建TLS引擎失败")
             sendRST()
             state = .closed; isClosed = true
+            return
         }
+        
+        tlsEngine = engine
+        logger("[TLS] ✅ TLS引擎已初始化")
     }
     
     private func feedTLSData(_ data: Data) {
-        guard let ctx = sslContext else { return }
+        guard let engine = tlsEngine else { return }
         
         tlsInBuffer.append(data)
         logger("[TLS] 收到客户端数据 \(data.count) bytes, 缓冲 \(tlsInBuffer.count) bytes")
         
-        let status = SSLHandshake(ctx)
-        logger("[TLS] 继续握手状态: \(status)")
+        let result = engine.process(tlsInBuffer)
+        tlsInBuffer.removeAll()
         
-        if !tlsOutBuffer.isEmpty {
-            let outData = tlsOutBuffer
-            tlsOutBuffer.removeAll()
-            sendTLSData(outData)
-            logger("[TLS] 发送握手数据 \(outData.count) bytes")
+        // 发送输出
+        if !engine.outputBuffer.isEmpty {
+            let out = engine.outputBuffer
+            engine.outputBuffer.removeAll()
+            let pkt = buildTCPPacket(flags: 0x18, payload: out)
+            packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+            seq += UInt32(out.count)
+            logger("[TLS] 发送握手数据 \(out.count) bytes")
         }
         
-        if status == noErr {
-            logger("[TLS] ✅ 握手成功!")
-            tlsHandshakeComplete()
-        } else if status == errSSLWouldBlock {
-            logger("[TLS] 等待更多数据...")
-        } else {
-            logger("[TLS] ❌ 握手失败: \(status)")
+        switch result {
+        case .handshakeDone:
+            if !engine.outputBuffer.isEmpty {
+                let out = engine.outputBuffer
+                engine.outputBuffer.removeAll()
+                let pkt = buildTCPPacket(flags: 0x18, payload: out)
+                packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+                seq += UInt32(out.count)
+                logger("[TLS] 发送握手数据 \(out.count) bytes")
+            }
+            if !tlsHandshakeDone {
+                tlsHandshakeDone = true
+                state = .tlsEstablished
+                logger("[TLS] ✅ 握手完成! 等待HTTP请求")
+            }
+        case .needMoreData:
+            logger("[TLS] 等待更多客户端数据...")
+        case .appData(let plaintext):
+            if !tlsHandshakeDone {
+                tlsHandshakeDone = true
+                state = .tlsEstablished
+                logger("[TLS] ✅ 握手完成! 收到应用数据")
+            }
+            handleHTTPData(plaintext)
+        case .error(let msg):
+            logger("[TLS] ❌ 错误: \(msg)")
             sendRST()
             state = .closed; isClosed = true
         }
     }
     
-    private func tlsHandshakeComplete() {
-        tlsHandshakeDone = true
-        state = .tlsEstablished
-        logger("[TLS] 握手完成! 等待HTTP请求")
+    private func feedTLSPayload(_ data: Data) {
+        guard let engine = tlsEngine, tlsHandshakeDone else { return }
         
-        // 尝试读取已缓冲的明文
-        if !tlsInBuffer.isEmpty {
-            readDecryptedHTTP()
+        tlsInBuffer.append(data)
+        let result = engine.process(tlsInBuffer)
+        tlsInBuffer.removeAll()
+        
+        switch result {
+        case .appData(let plaintext):
+            handleHTTPData(plaintext)
+        case .error(let msg):
+            logger("[TLS] ❌ 解密错误: \(msg)")
+            sendRST()
+            state = .closed; isClosed = true
+        default:
+            break
         }
-    }
-    
-    private func readDecryptedHTTP() {
-        guard let ctx = sslContext, tlsHandshakeDone else { return }
-        
-        // 将 tlsInBuffer 喂给 SSL 并读取明文
-        var decrypted = Data()
-        var buf = [UInt8](repeating: 0, count: 4096)
-        var processed = 0
-        
-        // 先尝试 SSLRead
-        let readStatus = SSLRead(ctx, &buf, 4096, &processed)
-        if readStatus == noErr || readStatus == errSSLWouldBlock {
-            if processed > 0 {
-                decrypted.append(Data(buf[0..<processed]))
-            }
-        }
-        
-        if !decrypted.isEmpty {
-            logger("[TLS] 解密数据 \(decrypted.count) bytes")
-            handleHTTPData(decrypted)
-        }
-    }
-    
-    private func sendTLSData(_ data: Data) {
-        let pkt = buildTCPPacket(flags: 0x18, payload: data)
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
-        seq += UInt32(data.count)
-        logger("[TLS] 发送TLS数据 \(data.count) bytes")
     }
     
     // MARK: - HTTP
@@ -707,21 +627,18 @@ class TCPHandler {
         
         logger("[HTTP] 发送假响应 (\(responseData.count) bytes) 位置: \(name) (\(adcode))")
         
-        if isHTTPS, let ctx = sslContext, tlsHandshakeDone {
-            // HTTPS: 加密响应
-            var written = 0
-            responseData.withUnsafeBytes { (ptr: UnsafeRawBufferPointer) in
-                let status = SSLWrite(ctx, ptr.baseAddress!, responseData.count, &written)
-                logger("[TLS] SSLWrite 状态: \(status), 写入: \(written)")
+        if isHTTPS, let engine = tlsEngine, tlsHandshakeDone {
+            // HTTPS: 使用 TLSEngine 加密响应
+            guard let encrypted = engine.encryptApplicationData(responseData) else {
+                logger("[TLS] 加密假响应失败")
+                sendRST()
+                state = .closed; isClosed = true
+                return
             }
-            
-            if !tlsOutBuffer.isEmpty {
-                let outData = tlsOutBuffer
-                tlsOutBuffer.removeAll()
-                let pkt = buildTCPPacket(flags: 0x18, payload: outData)
-                packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
-                seq += UInt32(outData.count)
-            }
+            let pkt = buildTCPPacket(flags: 0x18, payload: encrypted)
+            packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+            seq += UInt32(encrypted.count)
+            logger("[TLS] 已加密发送 \(encrypted.count) bytes")
         } else {
             // HTTP: 明文发送
             let pkt = buildTCPPacket(flags: 0x18, payload: responseData)

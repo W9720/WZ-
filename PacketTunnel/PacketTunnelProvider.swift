@@ -192,9 +192,20 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         writeLog("[命中] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
         
-        // 接受 80 (HTTP) 和 443 (HTTPS)
-        guard dstPort == 80 || dstPort == 443 else {
-            writeLog("[跳过] 非80/443端口: \(dstPort)")
+        // 🔥 443端口：立即发送RST，迫使游戏降级到HTTP
+        if dstPort == 443 {
+            let flags = packet[ihl + 13]
+            let syn = (flags & 0x02) != 0
+            if syn {
+                writeLog("[RST] 立即拒绝443连接，迫使降级HTTP")
+                sendRSTForPacket(packet)
+            }
+            return
+        }
+        
+        // 只处理 80 端口
+        guard dstPort == 80 else {
+            writeLog("[跳过] 非80端口: \(dstPort)")
             return
         }
         
@@ -219,6 +230,77 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         
         tcpConnections = tcpConnections.filter { !$0.value.isClosed }
+    }
+    
+    private func sendRSTForPacket(_ packet: Data) {
+        let ihl = Int(packet[0] & 0x0F) * 4
+        guard packet.count >= ihl + 20 else { return }
+        
+        let srcIP = packet.subdata(in: 12..<16)
+        let dstIP = packet.subdata(in: 16..<20)
+        let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
+        let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
+        let seqNum = packet.subdata(in: ihl+4..<ihl+8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+        
+        var rst = Data()
+        // IP头
+        rst.append(contentsOf: [0x45, 0x00, 0x00, 0x28])
+        let id = UInt16.random(in: 1...65535)
+        rst.append(contentsOf: [UInt8(id >> 8), UInt8(id & 0xFF)])
+        rst.append(contentsOf: [0x00, 0x00])
+        rst.append(0x40) // TTL=64
+        rst.append(0x06) // TCP
+        rst.append(contentsOf: [0x00, 0x00]) // checksum placeholder
+        rst.append(dstIP)
+        rst.append(srcIP)
+        
+        // TCP头
+        rst.append(contentsOf: [UInt8(dstPort >> 8), UInt8(dstPort & 0xFF)])
+        rst.append(contentsOf: [UInt8(srcPort >> 8), UInt8(srcPort & 0xFF)])
+        rst.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // seq=0
+        let ackNum = seqNum + 1
+        rst.append(contentsOf: [UInt8((ackNum >> 24) & 0xFF), UInt8((ackNum >> 16) & 0xFF), UInt8((ackNum >> 8) & 0xFF), UInt8(ackNum & 0xFF)])
+        rst.append(0x50) // data offset=5
+        rst.append(0x14) // RST+ACK
+        rst.append(contentsOf: [0x00, 0x00]) // window=0
+        rst.append(contentsOf: [0x00, 0x00]) // checksum placeholder
+        rst.append(contentsOf: [0x00, 0x00]) // urgent=0
+        
+        // TCP checksum
+        var pseudo = Data()
+        pseudo.append(dstIP)
+        pseudo.append(srcIP)
+        pseudo.append(0x00)
+        pseudo.append(0x06)
+        let tcpLen = UInt16(20)
+        pseudo.append(contentsOf: [UInt8(tcpLen >> 8), UInt8(tcpLen & 0xFF)])
+        pseudo.append(rst.subdata(in: 20..<40))
+        let tcpChecksum = checksum(pseudo)
+        rst[36] = UInt8(tcpChecksum >> 8)
+        rst[37] = UInt8(tcpChecksum & 0xFF)
+        
+        // IP checksum
+        let ipChecksum = checksum(rst.subdata(in: 0..<20))
+        rst[10] = UInt8(ipChecksum >> 8)
+        rst[11] = UInt8(ipChecksum & 0xFF)
+        
+        packetFlow.writePackets([rst], withProtocols: [AF_INET as NSNumber])
+    }
+    
+    private func checksum(_ data: Data) -> UInt16 {
+        var sum: UInt32 = 0
+        var i = 0
+        while i + 1 < data.count {
+            sum += UInt32(UInt16(data[i]) << 8 | UInt16(data[i+1]))
+            i += 2
+        }
+        if i < data.count {
+            sum += UInt32(data[i]) << 8
+        }
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
+        return UInt16(~sum & 0xFFFF)
     }
     
     private func getOrCreateTLS() -> (privateKey: SecKey, certData: Data)? {

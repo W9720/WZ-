@@ -28,7 +28,7 @@ class TLSEngine {
     private var handshakeComplete = false
     
     // 输出缓冲区
-    private(set) var outputBuffer = Data()
+    var outputBuffer = Data()
     
     // 解密后的明文数据
     private var plaintextBuffer = Data()
@@ -55,7 +55,7 @@ class TLSEngine {
         
         while offset + 5 <= data.count {
             let contentType = data[offset]
-            let recordVersion = (UInt16(data[offset + 1]) << 8) | UInt16(data[offset + 2])
+            _ = (UInt16(data[offset + 1]) << 8) | UInt16(data[offset + 2])
             let recordLength = Int((UInt16(data[offset + 3]) << 8) | UInt16(data[offset + 4]))
             
             guard offset + 5 + recordLength <= data.count else {
@@ -146,7 +146,7 @@ class TLSEngine {
         
         // 生成 server random
         var sr = Data(count: 32)
-        sr.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 32, $0.baseAddress!) }
+        let _ = sr.withUnsafeMutableBytes { SecRandomCopyBytes(kSecRandomDefault, 32, $0.baseAddress!) }
         serverRandom = sr
         
         // 跳过 session_id

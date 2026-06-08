@@ -21,6 +21,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     ]
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
+        clearLogs()
         writeLog("[PacketTunnel] startTunnel 被调用")
         
         resolveTargetHost { [weak self] ips in
@@ -69,10 +70,26 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         writeLog("[PacketTunnel] 停止，共处理\(packetCount)个包")
         tcpConnections.values.forEach { $0.close() }
         tcpConnections.removeAll()
+        flushLogs()
         completionHandler()
     }
     
     // MARK: - 日志
+    
+    private func clearLogs() {
+        if let defaults = UserDefaults(suiteName: appGroupId) {
+            defaults.removeObject(forKey: "vpn_logs")
+            defaults.synchronize()
+        }
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId) {
+            let fileURL = containerURL.appendingPathComponent("vpn_diag.log")
+            try? "".write(to: fileURL, atomically: true, encoding: .utf8)
+        }
+    }
+    
+    private func flushLogs() {
+        logQueue.sync {}
+    }
     
     private func writeLog(_ msg: String) {
         let line = "[\(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium))] \(msg)"
@@ -202,12 +219,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private func getOrCreateIdentity() -> (SecIdentity, SecCertificate)? {
         if let existing = tlsIdentity { return existing }
+        writeLog("[TLS] 开始生成自签名证书...")
         let result = createIdentity()
         tlsIdentity = result
         if result != nil {
-            writeLog("[TLS] 自签名证书生成成功")
+            writeLog("[TLS] ✅ 自签名证书生成成功")
         } else {
-            writeLog("[TLS] 自签名证书生成失败!")
+            writeLog("[TLS] ❌ 自签名证书生成失败!")
         }
         return result
     }
@@ -533,14 +551,16 @@ class TCPHandler {
             let outData = tlsOutBuffer
             tlsOutBuffer.removeAll()
             sendTLSData(outData)
+            logger("[TLS] 发送握手数据 \(outData.count) bytes")
         }
         
         if status == noErr {
+            logger("[TLS] ✅ 握手成功!")
             tlsHandshakeComplete()
         } else if status == errSSLWouldBlock {
-            // 等待更多客户端数据
+            logger("[TLS] 等待更多客户端数据...")
         } else {
-            logger("[TLS] 握手失败: \(status)")
+            logger("[TLS] ❌ 握手失败: \(status)")
             sendRST()
             state = .closed; isClosed = true
         }
@@ -550,6 +570,7 @@ class TCPHandler {
         guard let ctx = sslContext else { return }
         
         tlsInBuffer.append(data)
+        logger("[TLS] 收到客户端数据 \(data.count) bytes, 缓冲 \(tlsInBuffer.count) bytes")
         
         let status = SSLHandshake(ctx)
         logger("[TLS] 继续握手状态: \(status)")
@@ -558,14 +579,16 @@ class TCPHandler {
             let outData = tlsOutBuffer
             tlsOutBuffer.removeAll()
             sendTLSData(outData)
+            logger("[TLS] 发送握手数据 \(outData.count) bytes")
         }
         
         if status == noErr {
+            logger("[TLS] ✅ 握手成功!")
             tlsHandshakeComplete()
         } else if status == errSSLWouldBlock {
-            // 等待更多数据
+            logger("[TLS] 等待更多数据...")
         } else {
-            logger("[TLS] 握手失败: \(status)")
+            logger("[TLS] ❌ 握手失败: \(status)")
             sendRST()
             state = .closed; isClosed = true
         }
@@ -616,8 +639,14 @@ class TCPHandler {
     private func handleHTTPData(_ data: Data) {
         httpBuffer.append(data)
         
-        guard let httpStr = String(data: httpBuffer, encoding: .utf8) else { return }
-        guard httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") else { return }
+        guard let httpStr = String(data: httpBuffer, encoding: .utf8) else { 
+            logger("[HTTP] 无法解码UTF8")
+            return 
+        }
+        guard httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") else { 
+            logger("[HTTP] 等待更多数据... (已缓冲 \(httpBuffer.count) bytes)")
+            return 
+        }
         
         logger("[HTTP] 请求:\n\(httpStr.prefix(500))")
         
@@ -661,6 +690,8 @@ class TCPHandler {
         let location = LocationStore.shared.getSelectedLocation()
         let adcode = location?.adcode ?? "110101"
         let name = location?.name ?? "东城区"
+        
+        logger("[拦截] 位置: \(location?.province ?? "?") \(location?.city ?? "?") \(name) (\(adcode))")
         
         let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: adcode, regionName: name)
         let bodyData = fakeBody.data(using: .utf8) ?? Data()

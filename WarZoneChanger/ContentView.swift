@@ -259,18 +259,26 @@ struct ContentView: View {
                                 .background(Color(UIColor.systemGray6))
                                 .cornerRadius(8)
                                 
-                                Button("刷新日志") {
-                                    refreshLogs()
+                                HStack(spacing: 12) {
+                                    Button("刷新日志") {
+                                        refreshLogs()
+                                    }
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.accentColor)
+                                    
+                                    Button("一键复制") {
+                                        UIPasteboard.general.string = vpnLogs
+                                    }
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.accentColor)
+                                    .disabled(vpnLogs.isEmpty || vpnLogs.hasPrefix("暂无日志"))
+                                    
+                                    Button("清空日志") {
+                                        clearLogs()
+                                    }
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.red)
                                 }
-                                .font(.system(size: 12))
-                                .foregroundColor(.accentColor)
-                                
-                                Button("一键复制") {
-                                    UIPasteboard.general.string = vpnLogs
-                                }
-                                .font(.system(size: 12))
-                                .foregroundColor(.accentColor)
-                                .disabled(vpnLogs.isEmpty || vpnLogs.hasPrefix("暂无日志"))
                             }
                         }
                         .padding(16)
@@ -467,6 +475,18 @@ struct ContentView: View {
         }
         
         vpnLogs = logs.isEmpty ? "暂无日志 — App Group 可能不可访问或扩展未运行" : logs
+    }
+    
+    private func clearLogs() {
+        if let defaults = UserDefaults(suiteName: "group.com.warzone.changer") {
+            defaults.removeObject(forKey: "vpn_logs")
+            defaults.synchronize()
+        }
+        if let containerURL = FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: "group.com.warzone.changer") {
+            let fileURL = containerURL.appendingPathComponent("vpn_diag.log")
+            try? "".write(to: fileURL, atomically: true, encoding: .utf8)
+        }
+        vpnLogs = ""
     }
 }
 

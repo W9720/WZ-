@@ -192,20 +192,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         writeLog("[命中] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
         
-        // 🔥 443端口：立即发送RST，迫使游戏降级到HTTP
-        if dstPort == 443 {
-            let flags = packet[ihl + 13]
-            let syn = (flags & 0x02) != 0
-            if syn {
-                writeLog("[RST] 立即拒绝443连接，迫使降级HTTP")
-                sendRSTForPacket(packet)
-            }
-            return
-        }
-        
-        // 只处理 80 端口
-        guard dstPort == 80 else {
-            writeLog("[跳过] 非80端口: \(dstPort)")
+        // 接受 80 (HTTP) 和 443 (HTTPS)
+        guard dstPort == 80 || dstPort == 443 else {
+            writeLog("[跳过] 非80/443端口: \(dstPort)")
             return
         }
         

@@ -182,7 +182,7 @@ class TLSEngine {
         pos += csLen
         
         // 支持的密码套件
-        let supported = [0x003C, 0x002F, 0x0035, 0x009C, 0x009D]
+        let supported: [UInt16] = [0x003C, 0x002F, 0x0035, 0x009C, 0x009D]
         for cs in supported {
             if csList.contains(cs) {
                 selectedCipherSuite = cs
@@ -304,7 +304,7 @@ class TLSEngine {
     
     private func sha256(_ data: Data) -> Data {
         var hash = Data(count: Int(CC_SHA256_DIGEST_LENGTH))
-        data.withUnsafeBytes { dPtr in
+        let _ = data.withUnsafeBytes { dPtr in
             hash.withUnsafeMutableBytes { hPtr in
                 CC_SHA256(dPtr.baseAddress!, CC_LONG(data.count), hPtr.baseAddress!.assumingMemoryBound(to: UInt8.self))
             }

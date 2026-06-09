@@ -58,7 +58,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             
             let dns = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29"])
-            dns.matchDomains = [""]
             settings.dnsSettings = dns
             
             self.setTunnelNetworkSettings(settings) { error in
@@ -228,12 +227,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         packetCount += 1
         
-        if packetCount <= 20 {
+        if packetCount <= 200 {
             let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
             writeLog("[Packet IPv4] #\(packetCount) \(protoName) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }
+        
+        if dstIP != "192.168.99.1" {
+            writeLog("[TCP 443 候选] \(dstIP) (目标列表: \(targetIPv4s.contains(dstIP)))")
+        }
+        
         guard targetIPv4s.contains(dstIP) else { return }
         
         let ihl = Int(packet[0] & 0x0F) * 4
@@ -262,12 +266,17 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         packetCount += 1
         
-        if packetCount <= 20 {
+        if packetCount <= 200 {
             let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
             writeLog("[Packet IPv6] #\(packetCount) \(protoName) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }
+        
+        if !dstIP.hasPrefix("ff02") && dstIP != "fd00:192:168:99::1" {
+            writeLog("[TCP IPv6 候选] \(dstIP) (目标列表: \(targetIPv6s.contains(dstIP)))")
+        }
+        
         guard targetIPv6s.contains(dstIP) else { return }
         
         let srcIP = ipv6ToString(packet, offset: 8)
@@ -286,13 +295,31 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
     
     private func ipv6ToString(_ data: Data, offset: Int) -> String {
+        var addr = in6_addr()
+        data.copyBytes(to: &addr, from: offset..<offset+16)
+        var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+        let cString = inet_ntop(AF_INET6, &addr, &buffer, socklen_t(buffer.count))
+        if let cString = cString {
+            return String(cString: cString)
+        }
         var parts: [String] = []
         for i in stride(from: offset, to: offset + 16, by: 2) {
             let val = UInt16(data[i]) << 8 | UInt16(data[i + 1])
             parts.append(String(format: "%x", val))
         }
-        let result = parts.joined(separator: ":")
-        return result.replacingOccurrences(of: ":::", with: "::").replacingOccurrences(of: "::", with: "::")
+        return parts.joined(separator: ":")
+    }
+    
+    private func normalizeIPv6(_ ip: String) -> String {
+        var addr = in6_addr()
+        if ip.withCString({ inet_pton(AF_INET6, $0, &addr) }) == 1 {
+            var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+            let cString = inet_ntop(AF_INET6, &addr, &buffer, socklen_t(buffer.count))
+            if let cString = cString {
+                return String(cString: cString)
+            }
+        }
+        return ip.lowercased()
     }
     
     private func handleTCPConnection(key: String, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, isIPv6: Bool, packet: Data) {

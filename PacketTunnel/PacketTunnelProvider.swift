@@ -296,7 +296,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private func ipv6ToString(_ data: Data, offset: Int) -> String {
         var addr = in6_addr()
-        data.copyBytes(to: &addr, from: offset..<offset+16)
+        let subData = data.subdata(in: offset..<offset+16)
+        _ = withUnsafeMutableBytes(of: &addr) { bufPtr in
+            subData.copyBytes(to: bufPtr)
+        }
         var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
         let cString = inet_ntop(AF_INET6, &addr, &buffer, socklen_t(buffer.count))
         if let cString = cString {

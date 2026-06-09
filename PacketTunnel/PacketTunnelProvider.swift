@@ -418,10 +418,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             writeLog("[TLS] 导出公钥失败")
             return nil
         }
+        writeLog("[TLS] 开始构建X509证书...")
         guard let certData = buildX509Certificate(publicKeyData: pubKeyData, privateKey: privateKey) else {
             writeLog("[TLS] 构建证书失败")
             return nil
         }
+        writeLog("[TLS] X509证书构建成功，长度: \(certData.count)")
         return (privateKey, certData)
     }
     
@@ -646,6 +648,7 @@ class TCPHandler {
             state = .closed; isClosed = true
             return
         }
+        logger("[TLS] 证书数据长度: \(certData.count)")
         
         guard let certificate = SecCertificateCreateWithData(nil, certData as CFData) else {
             logger("[TLS] 创建证书对象失败")
@@ -674,12 +677,14 @@ class TCPHandler {
         let result = engine.process(tlsInBuffer)
         tlsInBuffer.removeAll()
         
+        let proto = isIPv6 ? AF_INET6 : AF_INET
+        
         // 发送输出
         if !engine.outputBuffer.isEmpty {
             let out = engine.outputBuffer
             engine.outputBuffer.removeAll()
             let pkt = buildTCPPacket(flags: 0x18, payload: out)
-            packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+            packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
             seq += UInt32(out.count)
             logger("[TLS] 发送握手数据 \(out.count) bytes")
         }
@@ -690,7 +695,7 @@ class TCPHandler {
                 let out = engine.outputBuffer
                 engine.outputBuffer.removeAll()
                 let pkt = buildTCPPacket(flags: 0x18, payload: out)
-                packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+                packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
                 seq += UInt32(out.count)
                 logger("[TLS] 发送握手数据 \(out.count) bytes")
             }

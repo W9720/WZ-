@@ -6,7 +6,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     private let targetHost = "apis.map.qq.com"
     private let targetPath = "/ws/geocoder/v1"
-    private var targetIPs: Set<String> = []
+    private var targetIPv4s: Set<String> = []
+    private var targetIPv6s: Set<String> = []
     private var tcpConnections: [String: TCPHandler] = [:]
     private let appGroupId = "group.com.warzone.changer"
     private let logQueue = DispatchQueue(label: "vpn.log")
@@ -26,26 +27,35 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         clearLogs()
         writeLog("[PacketTunnel] startTunnel 被调用")
         
-        resolveTargetHost { [weak self] ips in
+        resolveTargetHost { [weak self] ipv4s, ipv6s in
             guard let self = self else { return }
             
-            self.targetIPs = ips.union(self.fallbackIPs)
-            self.writeLog("[PacketTunnel] DNS解析: \(ips)")
-            self.writeLog("[PacketTunnel] 最终目标IP共\(self.targetIPs.count)个: \(self.targetIPs)")
+            self.targetIPv4s = ipv4s.union(self.fallbackIPs)
+            self.targetIPv6s = ipv6s
+            self.writeLog("[PacketTunnel] DNS解析 IPv4: \(ipv4s), IPv6: \(ipv6s)")
+            self.writeLog("[PacketTunnel] 目标IPv4共\(self.targetIPv4s.count)个: \(self.targetIPv4s)")
+            self.writeLog("[PacketTunnel] 目标IPv6共\(self.targetIPv6s.count)个: \(self.targetIPv6s)")
             
             let settings = NEPacketTunnelNetworkSettings(tunnelRemoteAddress: "8.8.8.8")
             settings.mtu = 1400
-            settings.ipv6Settings = nil
             
             let ipv4 = NEIPv4Settings(addresses: ["192.168.99.2"], subnetMasks: ["255.255.255.0"])
-            
-            var routes: [NEIPv4Route] = []
-            for ip in self.targetIPs {
-                routes.append(NEIPv4Route(destinationAddress: ip, subnetMask: "255.255.255.255"))
+            var ipv4Routes: [NEIPv4Route] = []
+            for ip in self.targetIPv4s {
+                ipv4Routes.append(NEIPv4Route(destinationAddress: ip, subnetMask: "255.255.255.255"))
             }
-            ipv4.includedRoutes = routes
-            
+            ipv4.includedRoutes = ipv4Routes
             settings.ipv4Settings = ipv4
+            
+            if !self.targetIPv6s.isEmpty {
+                let ipv6 = NEIPv6Settings(addresses: ["fd00:192:168:99::2"], networkPrefixLengths: [64])
+                var ipv6Routes: [NEIPv6Route] = []
+                for ip in self.targetIPv6s {
+                    ipv6Routes.append(NEIPv6Route(destinationAddress: ip, networkPrefixLength: 128))
+                }
+                ipv6.includedRoutes = ipv6Routes
+                settings.ipv6Settings = ipv6
+            }
             
             let dns = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29"])
             dns.matchDomains = [""]
@@ -58,7 +68,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     return
                 }
                 
-                self.writeLog("[PacketTunnel] 隧道启动成功，路由数: \(routes.count)")
+                self.writeLog("[PacketTunnel] 隧道启动成功，IPv4路由数: \(ipv4Routes.count), IPv6路由数: \(self.targetIPv6s.count)")
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.startForwarding()
@@ -127,31 +137,59 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     // MARK: - DNS
     
-    private func resolveTargetHost(completion: @escaping (Set<String>) -> Void) {
+    private func resolveTargetHost(completion: @escaping (Set<String>, Set<String>) -> Void) {
         DispatchQueue.global().async {
-            var ips = Set<String>()
-            var hints = addrinfo()
-            hints.ai_family = AF_INET
-            hints.ai_socktype = SOCK_STREAM
-            var result: UnsafeMutablePointer<addrinfo>?
-            let status = getaddrinfo(self.targetHost, nil, &hints, &result)
-            if status == 0 {
-                var ptr = result
+            var ipv4s = Set<String>()
+            var ipv6s = Set<String>()
+            
+            // 解析 IPv4
+            var hints4 = addrinfo()
+            hints4.ai_family = AF_INET
+            hints4.ai_socktype = SOCK_STREAM
+            var result4: UnsafeMutablePointer<addrinfo>?
+            let status4 = getaddrinfo(self.targetHost, nil, &hints4, &result4)
+            if status4 == 0 {
+                var ptr = result4
                 while ptr != nil {
                     if let addr = ptr?.pointee.ai_addr {
                         let sockaddr_in_ptr = addr.withMemoryRebound(to: sockaddr_in.self, capacity: 1) { $0 }
                         let addr_in = sockaddr_in_ptr.pointee.sin_addr
                         if let ipCStr = inet_ntoa(addr_in) {
-                            ips.insert(String(cString: ipCStr))
+                            ipv4s.insert(String(cString: ipCStr))
                         }
                     }
                     ptr = ptr?.pointee.ai_next
                 }
-                freeaddrinfo(result)
-            } else {
-                self.writeLog("[PacketTunnel] DNS解析失败，status=\(status)")
+                freeaddrinfo(result4)
             }
-            completion(ips)
+            
+            // 解析 IPv6
+            var hints6 = addrinfo()
+            hints6.ai_family = AF_INET6
+            hints6.ai_socktype = SOCK_STREAM
+            var result6: UnsafeMutablePointer<addrinfo>?
+            let status6 = getaddrinfo(self.targetHost, nil, &hints6, &result6)
+            if status6 == 0 {
+                var ptr = result6
+                while ptr != nil {
+                    if let addr = ptr?.pointee.ai_addr {
+                        let sockaddr_in6_ptr = addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { $0 }
+                        let addr_in6 = sockaddr_in6_ptr.pointee.sin6_addr
+                        var buf = [Int8](repeating: 0, count: Int(INET6_ADDRSTRLEN))
+                        if inet_ntop(AF_INET6, &addr_in6, &buf, socklen_t(INET6_ADDRSTRLEN)) != nil {
+                            ipv6s.insert(String(cString: buf))
+                        }
+                    }
+                    ptr = ptr?.pointee.ai_next
+                }
+                freeaddrinfo(result6)
+            }
+            
+            if status4 != 0 && status6 != 0 {
+                self.writeLog("[PacketTunnel] DNS解析失败，status4=\(status4), status6=\(status6)")
+            }
+            
+            completion(ipv4s, ipv6s)
         }
     }
     
@@ -168,7 +206,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private func processPacket(_ packet: Data) {
         guard packet.count >= 20 else { return }
         let version = (packet[0] >> 4) & 0x0F
-        guard version == 4 else { return }
+        
+        if version == 4 {
+            processIPv4Packet(packet)
+        } else if version == 6 {
+            processIPv6Packet(packet)
+        }
+    }
+    
+    private func processIPv4Packet(_ packet: Data) {
+        guard packet.count >= 20 else { return }
         
         let proto = packet[9]
         let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
@@ -177,11 +224,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         if packetCount <= 20 {
             let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
-            writeLog("[Packet] #\(packetCount) \(protoName) -> \(dstIP)")
+            writeLog("[Packet IPv4] #\(packetCount) \(protoName) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }
-        guard targetIPs.contains(dstIP) else { return }
+        guard targetIPv4s.contains(dstIP) else { return }
         
         let ihl = Int(packet[0] & 0x0F) * 4
         guard packet.count >= ihl + 20 else { return }
@@ -190,15 +237,59 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
         let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
         
-        writeLog("[命中] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+        writeLog("[命中 IPv4] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
         
-        // 接受 80 (HTTP) 和 443 (HTTPS)
         guard dstPort == 80 || dstPort == 443 else {
             writeLog("[跳过] 非80/443端口: \(dstPort)")
             return
         }
         
         let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
+        handleTCPConnection(key: key, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, isIPv6: false, packet: packet)
+    }
+    
+    private func processIPv6Packet(_ packet: Data) {
+        guard packet.count >= 40 else { return }
+        
+        let proto = packet[6]
+        let dstIP = ipv6ToString(packet, offset: 24)
+        
+        packetCount += 1
+        
+        if packetCount <= 20 {
+            let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
+            writeLog("[Packet IPv6] #\(packetCount) \(protoName) -> \(dstIP)")
+        }
+        
+        guard proto == 6 else { return }
+        guard targetIPv6s.contains(dstIP) else { return }
+        
+        let srcIP = ipv6ToString(packet, offset: 8)
+        let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
+        let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
+        
+        writeLog("[命中 IPv6] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+        
+        guard dstPort == 80 || dstPort == 443 else {
+            writeLog("[跳过] 非80/443端口: \(dstPort)")
+            return
+        }
+        
+        let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
+        handleTCPConnection(key: key, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, isIPv6: true, packet: packet)
+    }
+    
+    private func ipv6ToString(_ data: Data, offset: Int) -> String {
+        var parts: [String] = []
+        for i in stride(from: offset, to: offset + 16, by: 2) {
+            let val = UInt16(data[i]) << 8 | UInt16(data[i + 1])
+            parts.append(String(format: "%x", val))
+        }
+        let result = parts.joined(separator: ":")
+        return result.replacingOccurrences(of: ":::", with: "::").replacingOccurrences(of: "::", with: "::")
+    }
+    
+    private func handleTCPConnection(key: String, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, isIPv6: Bool, packet: Data) {
         if let conn = tcpConnections[key] {
             conn.processPacket(packet)
         } else {
@@ -210,6 +301,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 dstIP: dstIP, dstPort: dstPort,
                 targetHost: targetHost, targetPath: targetPath,
                 isHTTPS: isHTTPS,
+                isIPv6: isIPv6,
                 tlsPrivateKey: tls?.privateKey,
                 tlsCertData: tls?.certData,
                 logger: { [weak self] msg in self?.writeLog(msg) }
@@ -424,6 +516,7 @@ class TCPHandler {
     let targetHost: String
     let targetPath: String
     let isHTTPS: Bool
+    let isIPv6: Bool
     let tlsPrivateKey: SecKey?
     let tlsCertData: Data?
     let logger: (String) -> Void
@@ -441,7 +534,7 @@ class TCPHandler {
     
     enum State { case closed, synRecv, established, tlsHandshake, tlsEstablished, intercepted }
     
-    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, isHTTPS: Bool, tlsPrivateKey: SecKey?, tlsCertData: Data?, logger: @escaping (String) -> Void) {
+    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, isHTTPS: Bool, isIPv6: Bool, tlsPrivateKey: SecKey?, tlsCertData: Data?, logger: @escaping (String) -> Void) {
         self.packetFlow = packetFlow
         self.srcIP = srcIP
         self.srcPort = srcPort
@@ -450,21 +543,15 @@ class TCPHandler {
         self.targetHost = targetHost
         self.targetPath = targetPath
         self.isHTTPS = isHTTPS
+        self.isIPv6 = isIPv6
         self.tlsPrivateKey = tlsPrivateKey
         self.tlsCertData = tlsCertData
         self.logger = logger
     }
     
     func processPacket(_ pkt: Data) {
-        guard pkt.count >= 40 else { return }
-        let ipHdrLen = Int(pkt[0] & 0x0F) * 4
-        guard pkt.count >= ipHdrLen + 20 else { return }
-        
-        let seqNum = pkt.subdata(in: ipHdrLen+4..<ipHdrLen+8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-        let flags = pkt[ipHdrLen + 13]
-        let tcpHdrLen = Int((pkt[ipHdrLen + 12] >> 4) & 0x0F) * 4
-        let payloadOffset = ipHdrLen + tcpHdrLen
-        let payload = pkt.count > payloadOffset ? pkt.subdata(in: payloadOffset..<pkt.count) : Data()
+        let (seqNum, flags, tcpHdrLen, payload) = parsePacket(pkt)
+        guard seqNum != nil else { return }
         
         let syn = (flags & 0x02) != 0
         let ackF = (flags & 0x10) != 0
@@ -474,7 +561,7 @@ class TCPHandler {
         switch state {
         case .closed:
             if syn {
-                ack = seqNum + 1
+                ack = seqNum! + 1
                 state = .synRecv
                 sendSynAck()
                 logger("[TCP] SYN: \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
@@ -492,31 +579,31 @@ class TCPHandler {
             
         case .tlsHandshake:
             if !payload.isEmpty {
-                ack = seqNum + UInt32(payload.count)
+                ack = seqNum! + UInt32(payload.count)
                 sendACK()
                 feedTLSData(payload)
             }
             
         case .established:
             if fin {
-                sendFinAck(seqNum: seqNum)
+                sendFinAck(seqNum: seqNum!)
                 state = .closed; isClosed = true
             } else if rst {
                 state = .closed; isClosed = true
             } else if !payload.isEmpty {
-                ack = seqNum + UInt32(payload.count)
+                ack = seqNum! + UInt32(payload.count)
                 sendACK()
                 handleHTTPData(payload)
             }
             
         case .tlsEstablished:
             if fin {
-                sendFinAck(seqNum: seqNum)
+                sendFinAck(seqNum: seqNum!)
                 state = .closed; isClosed = true
             } else if rst {
                 state = .closed; isClosed = true
             } else if !payload.isEmpty {
-                ack = seqNum + UInt32(payload.count)
+                ack = seqNum! + UInt32(payload.count)
                 sendACK()
                 feedTLSPayload(payload)
             }
@@ -525,6 +612,28 @@ class TCPHandler {
             if fin || rst {
                 state = .closed; isClosed = true
             }
+        }
+    }
+    
+    private func parsePacket(_ pkt: Data) -> (seqNum: UInt32?, flags: UInt8, tcpHdrLen: Int, payload: Data) {
+        if isIPv6 {
+            guard pkt.count >= 40 else { return (nil, 0, 0, Data()) }
+            let seqNum = pkt.subdata(in: 40+4..<40+8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let flags = pkt[40 + 13]
+            let tcpHdrLen = Int((pkt[40 + 12] >> 4) & 0x0F) * 4
+            let payloadOffset = 40 + tcpHdrLen
+            let payload = pkt.count > payloadOffset ? pkt.subdata(in: payloadOffset..<pkt.count) : Data()
+            return (seqNum, flags, tcpHdrLen, payload)
+        } else {
+            guard pkt.count >= 20 else { return (nil, 0, 0, Data()) }
+            let ipHdrLen = Int(pkt[0] & 0x0F) * 4
+            guard pkt.count >= ipHdrLen + 20 else { return (nil, 0, 0, Data()) }
+            let seqNum = pkt.subdata(in: ipHdrLen+4..<ipHdrLen+8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
+            let flags = pkt[ipHdrLen + 13]
+            let tcpHdrLen = Int((pkt[ipHdrLen + 12] >> 4) & 0x0F) * 4
+            let payloadOffset = ipHdrLen + tcpHdrLen
+            let payload = pkt.count > payloadOffset ? pkt.subdata(in: payloadOffset..<pkt.count) : Data()
+            return (seqNum, flags, tcpHdrLen, payload)
         }
     }
     
@@ -656,25 +765,29 @@ class TCPHandler {
     
     private func sendSynAck() {
         let pkt = buildTCPPacket(flags: 0x12, payload: Data())
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+        let proto = isIPv6 ? AF_INET6 : AF_INET
+        packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
         seq += 1
     }
     
     private func sendACK() {
         let pkt = buildTCPPacket(flags: 0x10, payload: Data())
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+        let proto = isIPv6 ? AF_INET6 : AF_INET
+        packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
     }
     
     private func sendFinAck(seqNum: UInt32) {
         ack = seqNum + 1
         let pkt = buildTCPPacket(flags: 0x11, payload: Data())
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+        let proto = isIPv6 ? AF_INET6 : AF_INET
+        packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
         seq += 1
     }
     
     private func sendRST() {
         let pkt = buildTCPPacket(flags: 0x04, payload: Data())
-        packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+        let proto = isIPv6 ? AF_INET6 : AF_INET
+        packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
     }
     
     private func sendFakeResponse() {
@@ -698,8 +811,9 @@ class TCPHandler {
         
         logger("[HTTP] 发送假响应 (\(responseData.count) bytes) 位置: \(name) (\(adcode))")
         
+        let proto = isIPv6 ? AF_INET6 : AF_INET
+        
         if isHTTPS, let engine = tlsEngine, tlsHandshakeDone {
-            // HTTPS: 使用 TLSEngine 加密响应
             guard let encrypted = engine.encryptApplicationData(responseData) else {
                 logger("[TLS] 加密假响应失败")
                 sendRST()
@@ -707,20 +821,19 @@ class TCPHandler {
                 return
             }
             let pkt = buildTCPPacket(flags: 0x18, payload: encrypted)
-            packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+            packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
             seq += UInt32(encrypted.count)
             logger("[TLS] 已加密发送 \(encrypted.count) bytes")
         } else {
-            // HTTP: 明文发送
             let pkt = buildTCPPacket(flags: 0x18, payload: responseData)
-            packetFlow.writePackets([pkt], withProtocols: [AF_INET as NSNumber])
+            packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
             seq += UInt32(responseData.count)
         }
         
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
             let finPkt = self.buildTCPPacket(flags: 0x19, payload: Data())
-            self.packetFlow.writePackets([finPkt], withProtocols: [AF_INET as NSNumber])
+            self.packetFlow.writePackets([finPkt], withProtocols: [proto as NSNumber])
             self.seq += 1
             self.state = .closed
             self.isClosed = true
@@ -728,8 +841,16 @@ class TCPHandler {
     }
     
     private func buildTCPPacket(flags: UInt8, payload: Data) -> Data {
-        let src = parseIP(dstIP)
-        let dst = parseIP(srcIP)
+        if isIPv6 {
+            return buildIPv6TCPPacket(flags: flags, payload: payload)
+        } else {
+            return buildIPv4TCPPacket(flags: flags, payload: payload)
+        }
+    }
+    
+    private func buildIPv4TCPPacket(flags: UInt8, payload: Data) -> Data {
+        let src = parseIPv4(dstIP)
+        let dst = parseIPv4(srcIP)
         let totalLen = 20 + 20 + payload.count
         
         var ip = Data(count: 20)
@@ -783,10 +904,95 @@ class TCPHandler {
         return full
     }
     
-    private func parseIP(_ s: String) -> [UInt8] {
+    private func buildIPv6TCPPacket(flags: UInt8, payload: Data) -> Data {
+        let src = parseIPv6(dstIP)
+        let dst = parseIPv6(srcIP)
+        let tcpLen = 20 + payload.count
+        
+        var ip = Data(count: 40)
+        ip[0] = 0x60 // Version=6, Traffic Class=0, Flow Label=0
+        ip[1] = 0x00
+        ip[2] = 0x00
+        ip[3] = 0x00
+        withUnsafeBytes(of: UInt16(tcpLen).bigEndian) { ip.replaceSubrange(4..<6, with: $0) }
+        ip[6] = 6 // Protocol = TCP
+        ip[7] = 64 // Hop Limit
+        ip.replaceSubrange(8..<24, with: src)
+        ip.replaceSubrange(24..<40, with: dst)
+        
+        var tcp = Data(count: 20)
+        withUnsafeBytes(of: dstPort.bigEndian) { tcp.replaceSubrange(0..<2, with: $0) }
+        withUnsafeBytes(of: srcPort.bigEndian) { tcp.replaceSubrange(2..<4, with: $0) }
+        withUnsafeBytes(of: seq.bigEndian) { tcp.replaceSubrange(4..<8, with: $0) }
+        withUnsafeBytes(of: ack.bigEndian) { tcp.replaceSubrange(8..<12, with: $0) }
+        tcp[12] = 0x50
+        tcp[13] = flags
+        let window: UInt16 = 65535
+        withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
+        
+        var pseudo = Data()
+        pseudo.append(contentsOf: src)
+        pseudo.append(contentsOf: dst)
+        let tcpSegLen = UInt32(tcpLen).bigEndian
+        withUnsafeBytes(of: tcpSegLen) { pseudo.append($0) }
+        pseudo.append(0)
+        pseudo.append(0)
+        pseudo.append(0)
+        pseudo.append(6)
+        
+        var tcpWithPayload = Data()
+        tcpWithPayload.append(tcp)
+        tcpWithPayload.append(payload)
+        
+        var checkData = Data()
+        checkData.append(pseudo)
+        checkData.append(tcpWithPayload)
+        
+        let tcpCheck = checksum(checkData)
+        withUnsafeBytes(of: tcpCheck.bigEndian) { tcp.replaceSubrange(16..<18, with: $0) }
+        
+        var full = Data()
+        full.append(ip)
+        full.append(tcp)
+        full.append(payload)
+        
+        return full
+    }
+    
+    private func parseIPv4(_ s: String) -> [UInt8] {
         let parts = s.components(separatedBy: ".")
         guard parts.count == 4 else { return [0, 0, 0, 0] }
         return parts.compactMap { UInt8($0) }
+    }
+    
+    private func parseIPv6(_ s: String) -> [UInt8] {
+        var result = [UInt8](repeating: 0, count: 16)
+        let parts = s.components(separatedBy: ":")
+        var index = 0
+        var skipIndex = -1
+        
+        for (i, part) in parts.enumerated() {
+            if part.isEmpty {
+                skipIndex = i
+                continue
+            }
+            if let val = UInt16(part, radix: 16) {
+                result[index] = UInt8(val >> 8)
+                result[index + 1] = UInt8(val & 0xFF)
+                index += 2
+            }
+        }
+        
+        if skipIndex != -1 {
+            let remaining = 8 - parts.filter { !$0.isEmpty }.count
+            let shiftAmount = remaining * 2
+            for i in (0..<index).reversed() {
+                result[i + shiftAmount] = result[i]
+                result[i] = 0
+            }
+        }
+        
+        return result
     }
     
     private func checksum(_ data: Data) -> UInt16 {

@@ -70,6 +70,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 
                 self.writeLog("[PacketTunnel] 隧道启动成功，IPv4路由数: \(ipv4Routes.count), IPv6路由数: \(self.targetIPv6s.count)")
                 
+                DispatchQueue.global().async {
+                    self.writeLog("[PacketTunnel] 预生成TLS证书...")
+                    _ = self.getOrCreateTLS()
+                    self.writeLog("[PacketTunnel] TLS证书准备完成")
+                }
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.startForwarding()
                     completionHandler(nil)
@@ -400,6 +406,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
     
     private func createTLSCertificate() -> (SecKey, Data)? {
+        writeLog("[TLS] 开始生成RSA密钥...")
         let keyParams: [String: Any] = [
             kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
             kSecAttrKeySizeInBits as String: 2048,
@@ -410,6 +417,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             writeLog("[TLS] 密钥生成失败: \(error?.takeRetainedValue().localizedDescription ?? "?")")
             return nil
         }
+        writeLog("[TLS] RSA密钥生成成功")
+        
         guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
             writeLog("[TLS] 获取公钥失败")
             return nil
@@ -486,10 +495,14 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let tbs = seq(tbsInner)
         
         // 签名
+        writeLog("[TLS] 开始证书签名...")
         var error: Unmanaged<CFError>?
         guard let sig = SecKeyCreateSignature(privateKey, .rsaSignatureDigestPKCS1v15SHA256, tbs as CFData, &error) as Data? else {
+            let errMsg = error?.takeRetainedValue().localizedDescription ?? "?"
+            writeLog("[TLS] 证书签名失败: \(errMsg)")
             return nil
         }
+        writeLog("[TLS] 证书签名成功")
         let sigBS = Data([0x03]) + derLen(sig.count + 1) + Data([0x00]) + sig
         
         // 完整证书

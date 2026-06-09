@@ -174,7 +174,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 while ptr != nil {
                     if let addr = ptr?.pointee.ai_addr {
                         let sockaddr_in6_ptr = addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { $0 }
-                        let addr_in6 = sockaddr_in6_ptr.pointee.sin6_addr
+                        var addr_in6 = sockaddr_in6_ptr.pointee.sin6_addr
                         var buf = [Int8](repeating: 0, count: Int(INET6_ADDRSTRLEN))
                         if inet_ntop(AF_INET6, &addr_in6, &buf, socklen_t(INET6_ADDRSTRLEN)) != nil {
                             ipv6s.insert(String(cString: buf))
@@ -550,7 +550,7 @@ class TCPHandler {
     }
     
     func processPacket(_ pkt: Data) {
-        let (seqNum, flags, tcpHdrLen, payload) = parsePacket(pkt)
+        let (seqNum, flags, _, payload) = parsePacket(pkt)
         guard seqNum != nil else { return }
         
         let syn = (flags & 0x02) != 0
@@ -934,7 +934,7 @@ class TCPHandler {
         pseudo.append(contentsOf: src)
         pseudo.append(contentsOf: dst)
         let tcpSegLen = UInt32(tcpLen).bigEndian
-        withUnsafeBytes(of: tcpSegLen) { pseudo.append($0) }
+        withUnsafeBytes(of: tcpSegLen) { pseudo.append(contentsOf: $0) }
         pseudo.append(0)
         pseudo.append(0)
         pseudo.append(0)

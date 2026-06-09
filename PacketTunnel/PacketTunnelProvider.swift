@@ -406,33 +406,32 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     }
     
     private func createTLSCertificate() -> (SecKey, Data)? {
-        writeLog("[TLS] 开始生成RSA密钥...")
-        let keyParams: [String: Any] = [
-            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
-            kSecAttrKeySizeInBits as String: 2048,
-            kSecAttrIsPermanent as String: false,
-        ]
-        var error: Unmanaged<CFError>?
-        guard let privateKey = SecKeyCreateRandomKey(keyParams as CFDictionary, &error) else {
-            writeLog("[TLS] 密钥生成失败: \(error?.takeRetainedValue().localizedDescription ?? "?")")
-            return nil
-        }
-        writeLog("[TLS] RSA密钥生成成功")
+        writeLog("[TLS] 开始从预生成数据加载密钥和证书...")
         
-        guard let publicKey = SecKeyCopyPublicKey(privateKey) else {
-            writeLog("[TLS] 获取公钥失败")
+        guard let (privateKey, certData) = loadPreGeneratedTLS() else {
+            writeLog("[TLS] 预生成数据加载失败")
             return nil
         }
-        guard let pubKeyData = SecKeyCopyExternalRepresentation(publicKey, &error) as Data? else {
-            writeLog("[TLS] 导出公钥失败")
+        writeLog("[TLS] 预生成数据加载成功，密钥: \(preGeneratedPrivateKey.count) bytes, 证书: \(preGeneratedCert.count) bytes")
+        return (privateKey, certData)
+    }
+    
+    private func loadPreGeneratedTLS() -> (SecKey, Data)? {
+        let keyData = Data(preGeneratedPrivateKey)
+        let certData = Data(preGeneratedCert)
+        
+        let keyDict: [String: Any] = [
+            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
+            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
+            kSecAttrKeySizeInBits as String: 2048
+        ]
+        
+        var error: Unmanaged<CFError>?
+        guard let privateKey = SecKeyCreateWithData(keyData as CFData, keyDict as CFDictionary, &error) else {
+            writeLog("[TLS] 从数据创建私钥失败: \(error?.takeRetainedValue().localizedDescription ?? "?")")
             return nil
         }
-        writeLog("[TLS] 开始构建X509证书...")
-        guard let certData = buildX509Certificate(publicKeyData: pubKeyData, privateKey: privateKey) else {
-            writeLog("[TLS] 构建证书失败")
-            return nil
-        }
-        writeLog("[TLS] X509证书构建成功，长度: \(certData.count)")
+        
         return (privateKey, certData)
     }
     

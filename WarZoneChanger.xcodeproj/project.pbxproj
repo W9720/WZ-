@@ -21,6 +21,7 @@
 		A100000000000000000000014 /* LocationInjector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000015 /* LocationInjector.swift */; };
 		A100000000000000000000020 /* HTTPParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000021 /* HTTPParser.swift */; };
 		A100000000000000000000033 /* TLSEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000032 /* TLSEngine.swift */; };
+		A100000000000000000000034 /* PreGeneratedCert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000035 /* PreGeneratedCert.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -36,6 +37,7 @@
 		A100000000000000000000015 /* LocationInjector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationInjector.swift; sourceTree = "<group>"; };
 		A100000000000000000000021 /* HTTPParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPParser.swift; sourceTree = "<group>"; };
 		A100000000000000000000032 /* TLSEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TLSEngine.swift; sourceTree = "<group>"; };
+		A100000000000000000000035 /* PreGeneratedCert.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreGeneratedCert.swift; sourceTree = "<group>"; };
 		A100000000000000000000023 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A100000000000000000000025 /* VPNManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VPNManager.swift; sourceTree = "<group>"; };
 		A100000000000000000000027 /* CardCodeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardCodeManager.swift; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 				A100000000000000000000015 /* LocationInjector.swift */,
 				A100000000000000000000021 /* HTTPParser.swift */,
 				A100000000000000000000032 /* TLSEngine.swift */,
+				A100000000000000000000035 /* PreGeneratedCert.swift */,
 				A100000000000000000000023 /* Info.plist */,
 			);
 			path = PacketTunnel;
@@ -220,6 +223,7 @@
 				A100000000000000000000014 /* LocationInjector.swift in Sources */,
 				A100000000000000000000020 /* HTTPParser.swift in Sources */,
 				A100000000000000000000033 /* TLSEngine.swift in Sources */,
+				A100000000000000000000034 /* PreGeneratedCert.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

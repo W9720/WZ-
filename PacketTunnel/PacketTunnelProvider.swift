@@ -213,6 +213,32 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let version = (packet[0] >> 4) & 0x0F
         
         if version == 4 {
+            let proto = packet[9]
+            let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
+            let srcIP = "\(packet[12]).\(packet[13]).\(packet[14]).\(packet[15])"
+            
+            packetCount += 1
+            
+            if packetCount <= 200 {
+                let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
+                var portInfo = ""
+                if proto == 6 {
+                    let ihl = Int(packet[0] & 0x0F) * 4
+                    if packet.count >= ihl + 4 {
+                        let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
+                        let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
+                        portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
+                    }
+                } else if proto == 17 {
+                    if packet.count >= 28 {
+                        let srcPort = UInt16(packet[20]) << 8 | UInt16(packet[21])
+                        let dstPort = UInt16(packet[22]) << 8 | UInt16(packet[23])
+                        portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
+                    }
+                }
+                writeLog("[Packet IPv4] #\(packetCount) \(protoName) \(srcIP)\(portInfo)")
+            }
+            
             processIPv4Packet(packet)
         } else if version == 6 {
             processIPv6Packet(packet)
@@ -225,20 +251,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let proto = packet[9]
         let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
         
-        packetCount += 1
-        
-        if packetCount <= 200 {
-            let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
-            writeLog("[Packet IPv4] #\(packetCount) \(protoName) -> \(dstIP)")
-        }
-        
         guard proto == 6 else { return }
         
-        if dstIP != "192.168.99.1" {
-            writeLog("[TCP 443 候选] \(dstIP) (目标列表: \(targetIPv4s.contains(dstIP)))")
+        if !targetIPv4s.contains(dstIP) {
+            return
         }
-        
-        guard targetIPv4s.contains(dstIP) else { return }
         
         let ihl = Int(packet[0] & 0x0F) * 4
         guard packet.count >= ihl + 20 else { return }
@@ -263,23 +280,35 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         let proto = packet[6]
         let dstIP = ipv6ToString(packet, offset: 24)
+        let srcIP = ipv6ToString(packet, offset: 8)
         
         packetCount += 1
         
         if packetCount <= 200 {
             let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
-            writeLog("[Packet IPv6] #\(packetCount) \(protoName) -> \(dstIP)")
+            var portInfo = ""
+            if proto == 6 {
+                if packet.count >= 44 {
+                    let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
+                    let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
+                    portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
+                }
+            } else if proto == 17 {
+                if packet.count >= 48 {
+                    let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
+                    let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
+                    portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
+                }
+            }
+            if !dstIP.hasPrefix("ff02") {
+                writeLog("[Packet IPv6] #\(packetCount) \(protoName) \(srcIP)\(portInfo)")
+            }
         }
         
         guard proto == 6 else { return }
         
-        if !dstIP.hasPrefix("ff02") && dstIP != "fd00:192:168:99::1" {
-            writeLog("[TCP IPv6 候选] \(dstIP) (目标列表: \(targetIPv6s.contains(dstIP)))")
-        }
-        
         guard targetIPv6s.contains(dstIP) else { return }
         
-        let srcIP = ipv6ToString(packet, offset: 8)
         let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
         let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
         

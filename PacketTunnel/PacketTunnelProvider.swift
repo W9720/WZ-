@@ -20,7 +20,18 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         "119.147.13.124", "119.147.13.222", "119.147.14.89",
         "183.60.15.100", "183.60.60.100", "183.60.82.100",
         "123.151.76.100", "123.151.77.100",
-        "61.151.229.100", "61.151.252.100"
+        "61.151.229.100", "61.151.252.100",
+        "116.130.223.114", "116.130.224.140",
+        "123.151.48.124", "123.151.49.230",
+    ]
+    
+    private let fallbackIPv6s: Set<String> = [
+        "2408:8711:10:1000::19",
+        "2408:8711:10:105::2e",
+        "240e:928:1400:1003::2f",
+        "240e:928:1400:105::23",
+        "240e:928:1400:1000::19",
+        "240e:928:1400:105::2e",
     ]
     
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
@@ -31,7 +42,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             guard let self = self else { return }
             
             self.targetIPv4s = ipv4s.union(self.fallbackIPs)
-            self.targetIPv6s = ipv6s
+            self.targetIPv6s = ipv6s.union(self.fallbackIPv6s)
             self.writeLog("[PacketTunnel] DNS解析 IPv4: \(ipv4s), IPv6: \(ipv6s)")
             self.writeLog("[PacketTunnel] 目标IPv4共\(self.targetIPv4s.count)个: \(self.targetIPv4s)")
             self.writeLog("[PacketTunnel] 目标IPv6共\(self.targetIPv6s.count)个: \(self.targetIPv6s)")

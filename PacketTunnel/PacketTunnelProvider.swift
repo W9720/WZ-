@@ -34,11 +34,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         "240e:928:1400:105::2e",
     ]
     
+    private let additionalDomains: [String] = [
+        "apis.map.qq.com",
+        "st.map.qq.com",
+        "sv.map.qq.com",
+        "c.map.qq.com",
+        "p.map.qq.com",
+        "ditu.qq.com",
+        "map.qq.com",
+    ]
+    
     override func startTunnel(options: [String : NSObject]?, completionHandler: @escaping (Error?) -> Void) {
         clearLogs()
         writeLog("[PacketTunnel] startTunnel 被调用")
         
-        resolveTargetHost { [weak self] ipv4s, ipv6s in
+        resolveAllDomains { [weak self] ipv4s, ipv6s in
             guard let self = self else { return }
             
             self.targetIPv4s = ipv4s.union(self.fallbackIPs)
@@ -69,7 +79,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             
             let dns = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29"])
-            dns.matchDomains = ["qq.com", "map.qq.com", "apis.map.qq.com"]
+            dns.matchDomains = additionalDomains + ["qq.com", "map.qq.com", "apis.map.qq.com"]
             settings.dnsSettings = dns
             
             self.setTunnelNetworkSettings(settings) { error in
@@ -154,17 +164,39 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     
     // MARK: - DNS
     
-    private func resolveTargetHost(completion: @escaping (Set<String>, Set<String>) -> Void) {
+    private func resolveAllDomains(completion: @escaping (Set<String>, Set<String>) -> Void) {
+        let group = DispatchGroup()
+        var allIPv4s = Set<String>()
+        var allIPv6s = Set<String>()
+        let lock = NSLock()
+        
+        for domain in additionalDomains {
+            group.enter()
+            resolveDomain(domain) { ipv4s, ipv6s in
+                lock.lock()
+                allIPv4s.formUnion(ipv4s)
+                allIPv6s.formUnion(ipv6s)
+                lock.unlock()
+                self.writeLog("[DNS] \(domain) IPv4: \(ipv4s), IPv6: \(ipv6s)")
+                group.leave()
+            }
+        }
+        
+        group.notify(queue: .global()) {
+            completion(allIPv4s, allIPv6s)
+        }
+    }
+    
+    private func resolveDomain(_ domain: String, completion: @escaping (Set<String>, Set<String>) -> Void) {
         DispatchQueue.global().async {
             var ipv4s = Set<String>()
             var ipv6s = Set<String>()
             
-            // 解析 IPv4
             var hints4 = addrinfo()
             hints4.ai_family = AF_INET
             hints4.ai_socktype = SOCK_STREAM
             var result4: UnsafeMutablePointer<addrinfo>?
-            let status4 = getaddrinfo(self.targetHost, nil, &hints4, &result4)
+            let status4 = getaddrinfo(domain, nil, &hints4, &result4)
             if status4 == 0 {
                 var ptr = result4
                 while ptr != nil {
@@ -180,12 +212,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 freeaddrinfo(result4)
             }
             
-            // 解析 IPv6
             var hints6 = addrinfo()
             hints6.ai_family = AF_INET6
             hints6.ai_socktype = SOCK_STREAM
             var result6: UnsafeMutablePointer<addrinfo>?
-            let status6 = getaddrinfo(self.targetHost, nil, &hints6, &result6)
+            let status6 = getaddrinfo(domain, nil, &hints6, &result6)
             if status6 == 0 {
                 var ptr = result6
                 while ptr != nil {
@@ -200,10 +231,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     ptr = ptr?.pointee.ai_next
                 }
                 freeaddrinfo(result6)
-            }
-            
-            if status4 != 0 && status6 != 0 {
-                self.writeLog("[PacketTunnel] DNS解析失败，status4=\(status4), status6=\(status6)")
             }
             
             completion(ipv4s, ipv6s)
@@ -240,13 +267,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 if packet.count >= ihl + 4 {
                     let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
                     let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
+                    let syn = (packet[ihl + 13] & 0x02) != 0
                     
-                    if dstPort == 80 {
-                        writeLog("[TCP 80] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
-                    } else if dstPort == 443 {
-                        writeLog("[TCP 443] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
-                    } else if packetCount <= 500 {
-                        writeLog("[Packet IPv4] #\(packetCount) TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                    if syn {
+                        if dstPort == 80 {
+                            writeLog("[TCP SYN 80] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
+                        } else if dstPort == 443 {
+                            writeLog("[TCP SYN 443] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
+                        } else if packetCount <= 500 {
+                            writeLog("[TCP SYN] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
+                        }
                     }
                 }
             } else if proto == 17 {
@@ -256,12 +286,10 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     
                     if dstPort == 53 {
                         writeLog("[DNS] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                    } else if packetCount <= 500 {
+                    } else if packetCount <= 200 {
                         writeLog("[Packet IPv4] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                     }
                 }
-            } else if packetCount <= 500 {
-                writeLog("[Packet IPv4] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
             }
             
             processIPv4Packet(packet)
@@ -313,13 +341,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             if packet.count >= 44 {
                 let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
                 let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
+                let syn = (packet[40 + 13] & 0x02) != 0
                 
-                if dstPort == 80 {
-                    writeLog("[TCP 80 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
-                } else if dstPort == 443 {
-                    writeLog("[TCP 443 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
-                } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
-                    writeLog("[Packet IPv6] #\(packetCount) TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                if syn {
+                    if dstPort == 80 {
+                        writeLog("[TCP SYN 80 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
+                    } else if dstPort == 443 {
+                        writeLog("[TCP SYN 443 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
+                    } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
+                        writeLog("[TCP SYN IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
+                    }
                 }
             }
         } else if proto == 17 {
@@ -329,12 +360,8 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 
                 if dstPort == 53 {
                     writeLog("[DNS IPv6] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
-                    writeLog("[Packet IPv6] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                 }
             }
-        } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
-            writeLog("[Packet IPv6] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }
@@ -856,12 +883,30 @@ class TCPHandler {
             return 
         }
         
-        logger("[HTTP] 请求:\n\(httpStr.prefix(500))")
+        let requestPreview = String(httpStr.prefix(300))
+        logger("[HTTP] 收到请求 (目标Host: \(targetHost), 目标Path: \(targetPath)):")
+        logger("[HTTP] 请求预览: \(requestPreview.replacingOccurrences(of: "\r\n", with: " | "))")
         
-        if httpStr.contains(targetHost) && httpStr.contains(targetPath) {
+        let hostMatch = httpStr.contains(targetHost)
+        let pathMatch = httpStr.contains(targetPath)
+        
+        logger("[HTTP] Host匹配: \(hostMatch), Path匹配: \(pathMatch)")
+        
+        if hostMatch && pathMatch {
             logger("[HTTP] ✅ 命中目标! 返回假响应")
             state = .intercepted
             sendFakeResponse()
+        } else if httpStr.contains("map.qq.com") || httpStr.contains("ditu.qq.com") {
+            logger("[HTTP] ⚠️ 相关地图域名请求，检查是否需要拦截")
+            if httpStr.contains("/ws/geocoder") || httpStr.contains("/geocoder") {
+                logger("[HTTP] ✅ 发现地理编码请求，返回假响应")
+                state = .intercepted
+                sendFakeResponse()
+            } else {
+                logger("[HTTP] ⚠️ 非地理编码请求，关闭连接")
+                sendRST()
+                state = .closed; isClosed = true
+            }
         } else {
             logger("[HTTP] ⚠️ 非目标请求，关闭连接")
             sendRST()
@@ -900,13 +945,19 @@ class TCPHandler {
     
     private func sendFakeResponse() {
         let location = LocationStore.shared.getSelectedLocation()
-        let adcode = location?.adcode ?? "110101"
-        let name = location?.name ?? "东城区"
+        let adcode = location?.adcode ?? "460100"
+        let name = location?.name ?? "海口市"
+        let province = location?.province ?? "海南省"
+        let city = location?.city ?? "海口市"
         
-        logger("[拦截] 位置: \(location?.province ?? "?") \(location?.city ?? "?") \(name) (\(adcode))")
+        logger("[拦截] ✅ 位置: \(province) \(city) \(name) (adcode: \(adcode))")
+        logger("[拦截] isHTTPS: \(isHTTPS), isIPv6: \(isIPv6)")
         
         let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: adcode, regionName: name)
         let bodyData = fakeBody.data(using: .utf8) ?? Data()
+        
+        logger("[拦截] 假响应体长度: \(bodyData.count) bytes")
+        logger("[拦截] 假响应预览: \(fakeBody.prefix(200))")
         
         let response = "HTTP/1.1 200 OK\r\n" +
             "Content-Type: application/json; charset=utf-8\r\n" +
@@ -917,13 +968,15 @@ class TCPHandler {
         var responseData = response.data(using: .utf8) ?? Data()
         responseData.append(bodyData)
         
-        logger("[HTTP] 发送假响应 (\(responseData.count) bytes) 位置: \(name) (\(adcode))")
+        logger("[HTTP] ✅ 发送假响应 (\(responseData.count) bytes)")
+        logger("[HTTP] 响应头: \(response.replacingOccurrences(of: "\r\n", with: " | "))")
         
         let proto = isIPv6 ? AF_INET6 : AF_INET
         
         if isHTTPS, let engine = tlsEngine, tlsHandshakeDone {
+            logger("[TLS] 加密中...")
             guard let encrypted = engine.encryptApplicationData(responseData) else {
-                logger("[TLS] 加密假响应失败")
+                logger("[TLS] ❌ 加密假响应失败")
                 sendRST()
                 state = .closed; isClosed = true
                 return
@@ -931,11 +984,13 @@ class TCPHandler {
             let pkt = buildTCPPacket(flags: 0x18, payload: encrypted)
             packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
             seq += UInt32(encrypted.count)
-            logger("[TLS] 已加密发送 \(encrypted.count) bytes")
+            logger("[TLS] ✅ 已加密发送 \(encrypted.count) bytes")
         } else {
+            logger("[HTTP] 明文发送中... (isHTTPS: \(isHTTPS), tlsHandshakeDone: \(tlsHandshakeDone))")
             let pkt = buildTCPPacket(flags: 0x18, payload: responseData)
             packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
             seq += UInt32(responseData.count)
+            logger("[HTTP] ✅ 明文发送完成")
         }
         
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
@@ -945,6 +1000,7 @@ class TCPHandler {
             self.seq += 1
             self.state = .closed
             self.isClosed = true
+            logger("[TCP] 连接关闭")
         }
     }
     

@@ -69,6 +69,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             }
             
             let dns = NEDNSSettings(servers: ["223.5.5.5", "119.29.29.29"])
+            dns.matchDomains = ["qq.com", "map.qq.com", "apis.map.qq.com"]
             settings.dnsSettings = dns
             
             self.setTunnelNetworkSettings(settings) { error in
@@ -230,24 +231,31 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             
             packetCount += 1
             
-            if packetCount <= 200 {
-                let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
-                var portInfo = ""
-                if proto == 6 {
-                    let ihl = Int(packet[0] & 0x0F) * 4
-                    if packet.count >= ihl + 4 {
-                        let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
-                        let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
-                        portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
-                    }
-                } else if proto == 17 {
-                    if packet.count >= 28 {
-                        let srcPort = UInt16(packet[20]) << 8 | UInt16(packet[21])
-                        let dstPort = UInt16(packet[22]) << 8 | UInt16(packet[23])
-                        portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
+            if proto == 6 {
+                let ihl = Int(packet[0] & 0x0F) * 4
+                if packet.count >= ihl + 4 {
+                    let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
+                    let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
+                    
+                    if dstPort == 443 {
+                        writeLog("[TCP 443] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
+                    } else if packetCount <= 500 {
+                        writeLog("[Packet IPv4] #\(packetCount) TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                     }
                 }
-                writeLog("[Packet IPv4] #\(packetCount) \(protoName) \(srcIP)\(portInfo)")
+            } else if proto == 17 {
+                if packet.count >= 28 {
+                    let srcPort = UInt16(packet[20]) << 8 | UInt16(packet[21])
+                    let dstPort = UInt16(packet[22]) << 8 | UInt16(packet[23])
+                    
+                    if dstPort == 53 {
+                        writeLog("[DNS] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                    } else if packetCount <= 500 {
+                        writeLog("[Packet IPv4] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                    }
+                }
+            } else if packetCount <= 500 {
+                writeLog("[Packet IPv4] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
             }
             
             processIPv4Packet(packet)
@@ -295,25 +303,30 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         packetCount += 1
         
-        if packetCount <= 200 {
-            let protoName = proto == 6 ? "TCP" : (proto == 17 ? "UDP" : "\(proto)")
-            var portInfo = ""
-            if proto == 6 {
-                if packet.count >= 44 {
-                    let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
-                    let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
-                    portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
-                }
-            } else if proto == 17 {
-                if packet.count >= 48 {
-                    let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
-                    let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
-                    portInfo = ":\(srcPort) -> \(dstIP):\(dstPort)"
+        if proto == 6 {
+            if packet.count >= 44 {
+                let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
+                let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
+                
+                if dstPort == 443 {
+                    writeLog("[TCP 443 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
+                } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
+                    writeLog("[Packet IPv6] #\(packetCount) TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                 }
             }
-            if !dstIP.hasPrefix("ff02") {
-                writeLog("[Packet IPv6] #\(packetCount) \(protoName) \(srcIP)\(portInfo)")
+        } else if proto == 17 {
+            if packet.count >= 48 {
+                let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
+                let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
+                
+                if dstPort == 53 {
+                    writeLog("[DNS IPv6] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
+                    writeLog("[Packet IPv6] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                }
             }
+        } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
+            writeLog("[Packet IPv6] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }

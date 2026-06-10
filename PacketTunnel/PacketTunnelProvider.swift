@@ -237,7 +237,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
                     let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
                     
-                    if dstPort == 443 {
+                    if dstPort == 80 {
+                        writeLog("[TCP 80] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
+                    } else if dstPort == 443 {
                         writeLog("[TCP 443] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
                     } else if packetCount <= 500 {
                         writeLog("[Packet IPv4] #\(packetCount) TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
@@ -308,7 +310,9 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
                 let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
                 
-                if dstPort == 443 {
+                if dstPort == 80 {
+                    writeLog("[TCP 80 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
+                } else if dstPort == 443 {
                     writeLog("[TCP 443 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
                 } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
                     writeLog("[Packet IPv6] #\(packetCount) TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")

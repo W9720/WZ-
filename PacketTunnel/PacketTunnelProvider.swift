@@ -223,9 +223,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     if let addr = ptr?.pointee.ai_addr {
                         let sockaddr_in6_ptr = addr.withMemoryRebound(to: sockaddr_in6.self, capacity: 1) { $0 }
                         var addr_in6 = sockaddr_in6_ptr.pointee.sin6_addr
-                        var buf = [Int8](repeating: 0, count: Int(INET6_ADDRSTRLEN))
-                        if inet_ntop(AF_INET6, &addr_in6, &buf, socklen_t(INET6_ADDRSTRLEN)) != nil {
-                            ipv6s.insert(String(cString: buf))
+                        let ipStr = self.in6AddrToString(&addr_in6)
+                        if ipStr.contains(".") {
+                            ipv4s.insert(ipStr)
+                        } else {
+                            ipv6s.insert(ipStr)
                         }
                     }
                     ptr = ptr?.pointee.ai_next
@@ -264,19 +266,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             
             if proto == 6 {
                 let ihl = Int(packet[0] & 0x0F) * 4
-                if packet.count >= ihl + 4 {
+                if packet.count >= ihl + 14 {
                     let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
                     let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
-                    let syn = (packet[ihl + 13] & 0x02) != 0
+                    let flags = packet[ihl + 13]
+                    let syn = (flags & 0x02) != 0
+                    let ack = (flags & 0x10) != 0
+                    let fin = (flags & 0x01) != 0
+                    let rst = (flags & 0x04) != 0
+                    let psh = (flags & 0x08) != 0
                     
-                    if syn {
-                        if dstPort == 80 {
-                            writeLog("[TCP SYN 80] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
-                        } else if dstPort == 443 {
-                            writeLog("[TCP SYN 443] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
-                        } else if packetCount <= 500 {
-                            writeLog("[TCP SYN] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv4s.contains(dstIP)))")
-                        }
+                    if dstPort == 80 || dstPort == 443 || packetCount <= 100 {
+                        let flagStr = [syn ? "SYN" : "", ack ? "ACK" : "", fin ? "FIN" : "", rst ? "RST" : "", psh ? "PSH" : ""].filter { !$0.isEmpty }.joined(separator: ",")
+                        writeLog("[TCP IPv4] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) flags=\(flagStr) (目标列表: \(targetIPv4s.contains(dstIP)))")
                     }
                 }
             } else if proto == 17 {
@@ -285,11 +287,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     let dstPort = UInt16(packet[22]) << 8 | UInt16(packet[23])
                     
                     if dstPort == 53 {
-                        writeLog("[DNS] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                    } else if packetCount <= 200 {
-                        writeLog("[Packet IPv4] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                        writeLog("[DNS IPv4] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                    } else if packetCount <= 50 {
+                        writeLog("[UDP IPv4] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                     }
                 }
+            } else if packetCount <= 20 {
+                writeLog("[Packet IPv4] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
             }
             
             processIPv4Packet(packet)
@@ -338,19 +342,21 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         packetCount += 1
         
         if proto == 6 {
-            if packet.count >= 44 {
+            if packet.count >= 54 {
                 let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
                 let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
-                let syn = (packet[40 + 13] & 0x02) != 0
+                let flags = packet[40 + 13]
+                let syn = (flags & 0x02) != 0
+                let ack = (flags & 0x10) != 0
+                let fin = (flags & 0x01) != 0
+                let rst = (flags & 0x04) != 0
+                let psh = (flags & 0x08) != 0
                 
-                if syn {
-                    if dstPort == 80 {
-                        writeLog("[TCP SYN 80 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
-                    } else if dstPort == 443 {
-                        writeLog("[TCP SYN 443 IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
-                    } else if packetCount <= 500 && !dstIP.hasPrefix("ff02") {
-                        writeLog("[TCP SYN IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (目标列表: \(targetIPv6s.contains(dstIP)))")
-                    }
+                if (dstPort == 80 || dstPort == 443 || packetCount <= 100) && !dstIP.hasPrefix("ff02") {
+                    let flagStr = [syn ? "SYN" : "", ack ? "ACK" : "", fin ? "FIN" : "", rst ? "RST" : "", psh ? "PSH" : ""].filter { !$0.isEmpty }.joined(separator: ",")
+                    let isMappedIPv4 = dstIP.contains(".")
+                    let targetList = isMappedIPv4 ? targetIPv4s : targetIPv6s
+                    writeLog("[TCP IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) flags=\(flagStr) (目标列表: \(targetList.contains(dstIP)), isMappedIPv4=\(isMappedIPv4))")
                 }
             }
         } else if proto == 17 {
@@ -358,20 +364,26 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
                 let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
                 
-                if dstPort == 53 {
+                if dstPort == 53 && !dstIP.hasPrefix("ff02") {
                     writeLog("[DNS IPv6] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                } else if packetCount <= 50 && !dstIP.hasPrefix("ff02") {
+                    writeLog("[UDP IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                 }
             }
+        } else if packetCount <= 20 && !dstIP.hasPrefix("ff02") {
+            writeLog("[Packet IPv6] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }
         
-        guard targetIPv6s.contains(dstIP) else { return }
+        let isMappedIPv4 = dstIP.contains(".")
+        let targetList = isMappedIPv4 ? targetIPv4s : targetIPv6s
+        guard targetList.contains(dstIP) else { return }
         
         let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
         let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
         
-        writeLog("[命中 IPv6] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+        writeLog("[命中 IPv6] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (isMappedIPv4=\(isMappedIPv4))")
         
         guard dstPort == 80 || dstPort == 443 else {
             writeLog("[跳过] 非80/443端口: \(dstPort)")
@@ -379,7 +391,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         
         let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
-        handleTCPConnection(key: key, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, isIPv6: true, packet: packet)
+        handleTCPConnection(key: key, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, isIPv6: !isMappedIPv4, packet: packet)
     }
     
     private func ipv6ToString(_ data: Data, offset: Int) -> String {
@@ -388,27 +400,36 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         _ = withUnsafeMutableBytes(of: &addr) { bufPtr in
             subData.copyBytes(to: bufPtr)
         }
+        return in6AddrToString(&addr)
+    }
+    
+    private func in6AddrToString(_ addr: UnsafePointer<in6_addr>) -> String {
+        let bytes = UnsafeRawPointer(addr).assumingMemoryBound(to: UInt8.self)
+        if bytes[0] == 0 && bytes[1] == 0 && bytes[2] == 0 && bytes[3] == 0 &&
+           bytes[4] == 0 && bytes[5] == 0 && bytes[6] == 0 && bytes[7] == 0 &&
+           bytes[8] == 0 && bytes[9] == 0 && bytes[10] == 0xff && bytes[11] == 0xff {
+            return "\(bytes[12]).\(bytes[13]).\(bytes[14]).\(bytes[15])"
+        }
         var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
-        let cString = inet_ntop(AF_INET6, &addr, &buffer, socklen_t(buffer.count))
+        let cString = inet_ntop(AF_INET6, addr, &buffer, socklen_t(buffer.count))
         if let cString = cString {
             return String(cString: cString)
         }
         var parts: [String] = []
-        for i in stride(from: offset, to: offset + 16, by: 2) {
-            let val = UInt16(data[i]) << 8 | UInt16(data[i + 1])
+        for i in stride(from: 0, to: 16, by: 2) {
+            let val = UInt16(bytes[i]) << 8 | UInt16(bytes[i + 1])
             parts.append(String(format: "%x", val))
         }
         return parts.joined(separator: ":")
     }
     
     private func normalizeIPv6(_ ip: String) -> String {
+        if ip.hasPrefix("::ffff:") {
+            return String(ip.dropFirst(7))
+        }
         var addr = in6_addr()
         if ip.withCString({ inet_pton(AF_INET6, $0, &addr) }) == 1 {
-            var buffer = [CChar](repeating: 0, count: Int(INET6_ADDRSTRLEN))
-            let cString = inet_ntop(AF_INET6, &addr, &buffer, socklen_t(buffer.count))
-            if let cString = cString {
-                return String(cString: cString)
-            }
+            return in6AddrToString(&addr)
         }
         return ip.lowercased()
     }

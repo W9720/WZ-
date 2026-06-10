@@ -213,8 +213,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     // MARK: - 转发
     
     private func startForwarding() {
+        writeLog("[PacketTunnel] startForwarding 被调用")
         packetFlow.readPackets { [weak self] packets, _ in
             guard let self = self else { return }
+            if packets.count > 0 {
+                writeLog("[PacketTunnel] 收到 \(packets.count) 个数据包")
+            }
             for packet in packets { self.processPacket(packet) }
             self.startForwarding()
         }

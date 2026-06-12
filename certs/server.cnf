@@ -1,0 +1,30 @@
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+req_extensions = req_ext
+
+[dn]
+C = CN
+O = WarZoneChanger
+OU = VPN
+CN = apis.map.qq.com
+
+[req_ext]
+subjectAltName = @alt_names
+
+[alt_names]
+DNS.1 = apis.map.qq.com
+DNS.2 = map.qq.com
+DNS.3 = ditu.qq.com
+DNS.4 = st.map.qq.com
+DNS.5 = sv.map.qq.com
+DNS.6 = p.map.qq.com
+DNS.7 = c.map.qq.com
+
+[v3_ext]
+basicConstraints = CA:FALSE
+keyUsage = critical, digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth
+subjectAltName = @alt_names

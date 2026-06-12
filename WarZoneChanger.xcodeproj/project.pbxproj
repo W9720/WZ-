@@ -24,6 +24,8 @@
 		A100000000000000000000034 /* PreGeneratedCert.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000035 /* PreGeneratedCert.swift */; };
 		A100000000000000000000036 /* CertificateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000037 /* CertificateManager.swift */; };
 		A100000000000000000000038 /* LocalHTTPServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000039 /* LocalHTTPServer.swift */; };
+		A100000000000000000000042 /* PreGeneratedCertificates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000043 /* PreGeneratedCertificates.swift */; };
+		A100000000000000000000044 /* PreGeneratedCertificates.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000045 /* PreGeneratedCertificates.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -48,6 +50,8 @@
 		A100000000000000000000031 /* PacketTunnel.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = PacketTunnel.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		A100000000000000000000037 /* CertificateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CertificateManager.swift; sourceTree = "<group>"; };
 		A100000000000000000000039 /* LocalHTTPServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalHTTPServer.swift; sourceTree = "<group>"; };
+		A100000000000000000000043 /* PreGeneratedCertificates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreGeneratedCertificates.swift; sourceTree = "<group>"; };
+		A100000000000000000000045 /* PreGeneratedCertificates.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreGeneratedCertificates.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +96,7 @@
 				A100000000000000000000029 /* AnnouncementManager.swift */,
 				A100000000000000000000037 /* CertificateManager.swift */,
 				A100000000000000000000039 /* LocalHTTPServer.swift */,
+				A100000000000000000000043 /* PreGeneratedCertificates.swift */,
 			);
 			path = WarZoneChanger;
 			sourceTree = "<group>";
@@ -105,6 +110,7 @@
 				A100000000000000000000021 /* HTTPParser.swift */,
 				A100000000000000000000032 /* TLSEngine.swift */,
 				A100000000000000000000035 /* PreGeneratedCert.swift */,
+				A100000000000000000000045 /* PreGeneratedCertificates.swift */,
 				A100000000000000000000023 /* Info.plist */,
 			);
 			path = PacketTunnel;

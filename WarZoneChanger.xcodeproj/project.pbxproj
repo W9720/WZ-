@@ -225,6 +225,7 @@
 				A100000000000000000000028 /* AnnouncementManager.swift in Sources */,
 				A100000000000000000000036 /* CertificateManager.swift in Sources */,
 				A100000000000000000000038 /* LocalHTTPServer.swift in Sources */,
+				A100000000000000000000042 /* PreGeneratedCertificates.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

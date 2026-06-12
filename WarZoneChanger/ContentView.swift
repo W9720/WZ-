@@ -879,6 +879,8 @@ struct CertificateGuideView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var certManager = CertificateManager.shared
     @State private var step = 0
+    @State private var showSaveAlert = false
+    @State private var saveMessage = ""
     
     var body: some View {
         NavigationView {
@@ -911,8 +913,14 @@ struct CertificateGuideView: View {
                     
                     VStack(spacing: 12) {
                         Button(action: {
-                            if certManager.saveCertFileToDocuments() != nil {
+                            let result = certManager.saveCertFileToDocuments()
+                            if result != nil {
+                                saveMessage = "证书已保存到文件应用！\n\n请打开\"文件\"应用，找到 WarZoneChanger.cer 文件，点击它即可安装。"
+                                showSaveAlert = true
                                 step = 1
+                            } else {
+                                saveMessage = "保存失败，请重试"
+                                showSaveAlert = true
                             }
                         }) {
                             HStack {
@@ -929,8 +937,14 @@ struct CertificateGuideView: View {
                         
                         HStack(spacing: 12) {
                             Button(action: {
-                                if certManager.saveMobileConfigToDocuments() != nil {
+                                let result = certManager.saveMobileConfigToDocuments()
+                                if result != nil {
+                                    saveMessage = "配置文件已保存！\n\n请在\"文件\"应用中点击 WarZoneChanger.mobileconfig 文件。"
+                                    showSaveAlert = true
                                     step = 1
+                                } else {
+                                    saveMessage = "保存失败，请重试"
+                                    showSaveAlert = true
                                 }
                             }) {
                                 HStack {
@@ -947,6 +961,8 @@ struct CertificateGuideView: View {
                             
                             Button(action: {
                                 certManager.copyCertificateToPasteboard()
+                                saveMessage = "证书已复制到剪贴板！\n\n您可以通过 AirDrop 或邮件发送到电脑，然后用 AirDrop 传回 iPhone 安装。"
+                                showSaveAlert = true
                             }) {
                                 HStack {
                                     Image(systemName: "doc.on.doc")
@@ -990,6 +1006,11 @@ struct CertificateGuideView: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                    .alert("提示", isPresented: $showSaveAlert) {
+                        Button("确定", role: .cancel) { }
+                    } message: {
+                        Text(saveMessage)
+                    }
                     
                     VStack(alignment: .leading, spacing: 12) {
                         Text("⚠️ 重要提示")

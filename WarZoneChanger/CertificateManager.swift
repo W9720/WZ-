@@ -99,11 +99,14 @@ class CertificateManager: ObservableObject {
     
     @Published var isInstalled: Bool = false
     @Published var isTrusted: Bool = false
+    @Published var lastMessage: String = ""
+    @Published var showMessage: Bool = false
     
     private let certData: Data
     
     private init() {
         self.certData = Data(warzoneCertData)
+        print("证书数据大小: \(certData.count) bytes")
     }
     
     func getCertificateData() -> Data {
@@ -111,36 +114,57 @@ class CertificateManager: ObservableObject {
     }
     
     func saveCertFileToDocuments() -> URL? {
+        print("开始保存证书到 Documents 目录...")
+        
         let fileManager = FileManager.default
+        
         guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            print("无法访问 Documents 目录")
+            print("错误: 无法获取 Documents 目录")
+            showErrorMessage("无法访问文件目录")
             return nil
         }
+        
+        print("Documents 目录: \(documentsDir.path)")
         
         let certURL = documentsDir.appendingPathComponent("WarZoneChanger.cer")
         
         do {
             try certData.write(to: certURL)
             print("证书已保存到: \(certURL.path)")
+            
+            let fileExists = fileManager.fileExists(atPath: certURL.path)
+            print("文件存在: \(fileExists)")
+            
+            if fileExists {
+                showSuccessMessage("证书已保存到文件应用")
+            } else {
+                showErrorMessage("文件不存在")
+            }
+            
             return certURL
         } catch {
-            print("保存证书失败: \(error)")
+            print("保存证书失败: \(error.localizedDescription)")
+            showErrorMessage("保存失败: \(error.localizedDescription)")
             return nil
         }
     }
     
     func saveMobileConfigToDocuments() -> URL? {
+        print("开始保存配置文件...")
+        
         let base64Cert = certData.base64EncodedString()
         let mobileConfig = generateMobileConfig(certBase64: base64Cert)
         
         guard let configData = mobileConfig.data(using: .utf8) else {
-            print("配置文件编码失败")
+            print("错误: 配置文件编码失败")
+            showErrorMessage("配置文件编码失败")
             return nil
         }
         
         let fileManager = FileManager.default
+        
         guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            print("无法访问 Documents 目录")
+            showErrorMessage("无法访问文件目录")
             return nil
         }
         
@@ -149,9 +173,18 @@ class CertificateManager: ObservableObject {
         do {
             try configData.write(to: configURL)
             print("配置文件已保存到: \(configURL.path)")
+            
+            let fileExists = fileManager.fileExists(atPath: configURL.path)
+            print("文件存在: \(fileExists)")
+            
+            if fileExists {
+                showSuccessMessage("配置文件已保存")
+            }
+            
             return configURL
         } catch {
-            print("保存配置文件失败: \(error)")
+            print("保存配置文件失败: \(error.localizedDescription)")
+            showErrorMessage("保存失败: \(error.localizedDescription)")
             return nil
         }
     }
@@ -165,6 +198,7 @@ class CertificateManager: ObservableObject {
         let pemString = "-----BEGIN CERTIFICATE-----\n\(base64Cert)\n-----END CERTIFICATE-----"
         UIPasteboard.general.string = pemString
         print("证书已复制到剪贴板")
+        showSuccessMessage("证书已复制到剪贴板")
     }
     
     func copyMobileConfigToPasteboard() {
@@ -172,9 +206,13 @@ class CertificateManager: ObservableObject {
         let mobileConfig = generateMobileConfig(certBase64: base64Cert)
         UIPasteboard.general.string = mobileConfig
         print("配置文件已复制到剪贴板")
+        showSuccessMessage("配置文件已复制")
     }
     
     private func generateMobileConfig(certBase64: String) -> String {
+        let uuid1 = UUID().uuidString
+        let uuid2 = UUID().uuidString
+        
         return """
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -190,7 +228,7 @@ class CertificateManager: ObservableObject {
             <key>PayloadIdentifier</key>
             <string>com.warzone.changer.ca</string>
             <key>PayloadUUID</key>
-            <string>\(UUID().uuidString)</string>
+            <string>\(uuid1)</string>
             <key>PayloadDisplayName</key>
             <string>WarZoneChanger CA Certificate</string>
             <key>Certificate</key>
@@ -206,7 +244,7 @@ class CertificateManager: ObservableObject {
     <key>PayloadIdentifier</key>
     <string>com.warzone.changer.config</string>
     <key>PayloadUUID</key>
-    <string>\(UUID().uuidString)</string>
+    <string>\(uuid2)</string>
     <key>PayloadDisplayName</key>
     <string>WarZoneChanger Certificate</string>
     <key>PayloadDescription</key>
@@ -217,16 +255,37 @@ class CertificateManager: ObservableObject {
     }
     
     func getCertificateInfo() -> String {
-        var info = "证书信息:\n"
+        var info = "证书数据检查:\n"
         info += "格式: DER (.cer)\n"
         info += "大小: \(certData.count) bytes\n"
-        info += "Common Name: apis.map.qq.com\n"
-        info += "有效期: 10年\n"
+        info += "数据非空: \(certData.count > 0)\n"
         return info
     }
     
     func getMobileConfigString() -> String {
         let base64Cert = certData.base64EncodedString()
         return generateMobileConfig(certBase64: base64Cert)
+    }
+    
+    private func showSuccessMessage(_ message: String) {
+        DispatchQueue.main.async {
+            self.lastMessage = "✅ \(message)"
+            self.showMessage = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            self.showMessage = false
+        }
+    }
+    
+    private func showErrorMessage(_ message: String) {
+        DispatchQueue.main.async {
+            self.lastMessage = "❌ \(message)"
+            self.showMessage = true
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+            self.showMessage = false
+        }
     }
 }

@@ -100,7 +100,7 @@ class CertificateGenerator {
         return Data(finalCert)
     }
     
-    private func encodeName(_ name: [String: String]) -> [UInt8] {
+    func encodeName(_ name: [String: String]) -> [UInt8] {
         var result = [UInt8]()
         
         if let cn = name["CN"] {
@@ -134,7 +134,7 @@ class CertificateGenerator {
         return final
     }
     
-    private func encodeNameEntry(_ oid: String, value: String) -> [UInt8] {
+    func encodeNameEntry(_ oid: String, value: String) -> [UInt8] {
         var result = [UInt8]()
         
         result.append(0x30)
@@ -153,7 +153,7 @@ class CertificateGenerator {
         return result
     }
     
-    private func encodeOID(_ oid: String) -> [UInt8] {
+    func encodeOID(_ oid: String) -> [UInt8] {
         var bytes = [UInt8]()
         
         let parts = oid.split(separator: ".").compactMap { UInt64($0) }
@@ -196,7 +196,7 @@ class CertificateGenerator {
         return result
     }
     
-    private func encodeLength(_ length: Int) -> [UInt8] {
+    func encodeLength(_ length: Int) -> [UInt8] {
         if length < 0x80 {
             return [UInt8(length)]
         } else if length < 0x100 {
@@ -208,7 +208,7 @@ class CertificateGenerator {
         }
     }
     
-    private func encodeDate(_ date: Date) -> [UInt8] {
+    func encodeDate(_ date: Date) -> [UInt8] {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyMMddHHmmss'Z'"
         formatter.timeZone = TimeZone(identifier: "UTC")
@@ -222,7 +222,7 @@ class CertificateGenerator {
         return result
     }
     
-    private func exportPublicKey(_ publicKey: SecKey) -> Data? {
+    func exportPublicKey(_ publicKey: SecKey) -> Data? {
         var error: Unmanaged<CFError>?
         guard let keyData = SecKeyCopyExternalRepresentation(publicKey, &error) else {
             let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
@@ -240,7 +240,7 @@ class CertificateGenerator {
         return Data(wrapped)
     }
     
-    private func signData(_ data: Data, with privateKey: SecKey) -> Data? {
+    func signData(_ data: Data, with privateKey: SecKey) -> Data? {
         let digest = sha256(data)
         
         var digestInfo = [UInt8]()
@@ -268,7 +268,7 @@ class CertificateGenerator {
         return signature as Data
     }
     
-    private func sha256(_ data: Data) -> [UInt8] {
+    func sha256(_ data: Data) -> [UInt8] {
         var hash = [UInt8](repeating: 0, count: Int(CC_SHA256_DIGEST_LENGTH))
         data.withUnsafeBytes {
             _ = CC_SHA256($0.baseAddress, CC_LONG(data.count), &hash)
@@ -310,7 +310,7 @@ class ServerCertificateGenerator {
         return (serverCert, serverPrivateKey)
     }
     
-    private func createServerCertificate(
+    func createServerCertificate(
         for host: String,
         serverPublicKey: SecKey,
         caPrivateKey: SecKey,

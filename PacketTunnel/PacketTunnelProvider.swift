@@ -635,7 +635,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         writeLog("[TLS] 证书生成成功，大小: \(certData.count) bytes")
         
-        guard let cert = SecCertificateCreateWithData(nil, certData as CFData) else {
+        guard SecCertificateCreateWithData(nil, certData as CFData) != nil else {
             writeLog("[TLS] 验证证书失败 - 无法从数据创建证书对象")
             return nil
         }

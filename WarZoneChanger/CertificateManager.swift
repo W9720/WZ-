@@ -95,14 +95,14 @@ let warzoneCertData: [UInt8] = [
 ]
 
 class CertificateManager: ObservableObject {
+    
     static let shared = CertificateManager()
     
-    @Published var isInstalled: Bool = false
-    @Published var isTrusted: Bool = false
     @Published var lastMessage: String = ""
     @Published var showMessage: Bool = false
     
     private let certData: Data
+    private var httpServer: LocalHTTPServer?
     
     private init() {
         self.certData = Data(warzoneCertData)
@@ -113,8 +113,106 @@ class CertificateManager: ObservableObject {
         return certData
     }
     
+    func getCertificateBase64() -> String {
+        return certData.base64EncodedString()
+    }
+    
+    func getMobileConfigString() -> String {
+        let base64Cert = certData.base64EncodedString()
+        return generateMobileConfig(certBase64: base64Cert)
+    }
+    
+    private func generateMobileConfig(certBase64: String) -> String {
+        let uuid1 = UUID().uuidString
+        let uuid2 = UUID().uuidString
+        
+        return """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>PayloadCertificateFileName</key>
+            <string>WarZoneChanger.cer</string>
+            <key>PayloadContent</key>
+            <data>\(certBase64)</data>
+            <key>PayloadDescription</key>
+            <string>安装证书以支持 HTTPS 拦截</string>
+            <key>PayloadDisplayName</key>
+            <string>WarZoneChanger Certificate</string>
+            <key>PayloadIdentifier</key>
+            <string>com.warzone.changer.ca</string>
+            <key>PayloadOrganization</key>
+            <string>WarZoneChanger</string>
+            <key>PayloadType</key>
+            <string>com.apple.security.pkcs12</string>
+            <key>PayloadUUID</key>
+            <string>\(uuid1)</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+        </dict>
+    </array>
+    <key>PayloadDisplayName</key>
+    <string>战区精灵证书</string>
+    <key>PayloadIdentifier</key>
+    <string>com.warzone.changer.config</string>
+    <key>PayloadOrganization</key>
+    <string>WarZoneChanger</string>
+    <key>PayloadRemovalDisallowed</key>
+    <false/>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadUUID</key>
+    <string>\(uuid2)</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+</dict>
+</plist>
+"""
+    }
+    
+    func openCertificateViaHTTPServer() -> Bool {
+        print("启动本地 HTTP 服务器...")
+        
+        let mobileConfig = getMobileConfigString()
+        
+        httpServer = LocalHTTPServer()
+        
+        if httpServer?.start(mobileConfig: mobileConfig, port: 8080) == true {
+            print("HTTP 服务器启动成功")
+            
+            if let url = URL(string: "http://localhost:8080/cert.mobileconfig") {
+                print("打开 URL: \(url)")
+                
+                DispatchQueue.main.async {
+                    UIApplication.shared.open(url) { success in
+                        if success {
+                            self.showSuccessMessage("已打开证书安装页面，请在 Safari 中点击\"允许\"")
+                        } else {
+                            self.showErrorMessage("无法打开 Safari")
+                        }
+                    }
+                }
+                return true
+            }
+        } else {
+            print("HTTP 服务器启动失败")
+            showErrorMessage("无法启动本地服务器")
+            return false
+        }
+        
+        return false
+    }
+    
+    func stopHTTPServer() {
+        httpServer?.stop()
+        httpServer = nil
+    }
+    
     func saveCertFileToDocuments() -> URL? {
-        print("开始保存证书到 Documents 目录...")
+        print("保存证书到 Documents 目录...")
         
         let fileManager = FileManager.default
         
@@ -136,7 +234,6 @@ class CertificateManager: ObservableObject {
             print("文件存在: \(fileExists)")
             
             if fileExists {
-                print("开始分享文件...")
                 shareFile(url: certURL)
                 showSuccessMessage("证书已准备好，请在分享面板中选择操作")
             } else {
@@ -169,111 +266,12 @@ class CertificateManager: ObservableObject {
         }
     }
     
-    func saveMobileConfigToDocuments() -> URL? {
-        print("开始保存配置文件...")
-        
-        let base64Cert = certData.base64EncodedString()
-        let mobileConfig = generateMobileConfig(certBase64: base64Cert)
-        
-        guard let configData = mobileConfig.data(using: .utf8) else {
-            print("错误: 配置文件编码失败")
-            showErrorMessage("配置文件编码失败")
-            return nil
-        }
-        
-        let fileManager = FileManager.default
-        
-        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            showErrorMessage("无法访问文件目录")
-            return nil
-        }
-        
-        let configURL = documentsDir.appendingPathComponent("WarZoneChanger.mobileconfig")
-        
-        do {
-            try configData.write(to: configURL)
-            print("配置文件已保存到: \(configURL.path)")
-            
-            let fileExists = fileManager.fileExists(atPath: configURL.path)
-            print("文件存在: \(fileExists)")
-            
-            if fileExists {
-                print("开始分享配置文件...")
-                shareFile(url: configURL)
-                showSuccessMessage("配置文件已准备好，请在分享面板中选择操作")
-            }
-            
-            return configURL
-        } catch {
-            print("保存配置文件失败: \(error.localizedDescription)")
-            showErrorMessage("保存失败: \(error.localizedDescription)")
-            return nil
-        }
-    }
-    
-    func getCertificateBase64() -> String {
-        return certData.base64EncodedString()
-    }
-    
     func copyCertificateToPasteboard() {
         let base64Cert = certData.base64EncodedString()
         let pemString = "-----BEGIN CERTIFICATE-----\n\(base64Cert)\n-----END CERTIFICATE-----"
         UIPasteboard.general.string = pemString
         print("证书已复制到剪贴板")
         showSuccessMessage("证书已复制到剪贴板")
-    }
-    
-    func copyMobileConfigToPasteboard() {
-        let base64Cert = certData.base64EncodedString()
-        let mobileConfig = generateMobileConfig(certBase64: base64Cert)
-        UIPasteboard.general.string = mobileConfig
-        print("配置文件已复制到剪贴板")
-        showSuccessMessage("配置文件已复制")
-    }
-    
-    private func generateMobileConfig(certBase64: String) -> String {
-        let uuid1 = UUID().uuidString
-        let uuid2 = UUID().uuidString
-        
-        return """
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>PayloadContent</key>
-    <array>
-        <dict>
-            <key>PayloadType</key>
-            <string>com.apple.security.root</string>
-            <key>PayloadVersion</key>
-            <integer>1</integer>
-            <key>PayloadIdentifier</key>
-            <string>com.warzone.changer.ca</string>
-            <key>PayloadUUID</key>
-            <string>\(uuid1)</string>
-            <key>PayloadDisplayName</key>
-            <string>WarZoneChanger CA Certificate</string>
-            <key>Certificate</key>
-            <data>\(certBase64)</data>
-            <key>PayloadDescription</key>
-            <string>Install CA certificate for WarZoneChanger VPN</string>
-        </dict>
-    </array>
-    <key>PayloadType</key>
-    <string>Configuration</string>
-    <key>PayloadVersion</key>
-    <integer>1</integer>
-    <key>PayloadIdentifier</key>
-    <string>com.warzone.changer.config</string>
-    <key>PayloadUUID</key>
-    <string>\(uuid2)</string>
-    <key>PayloadDisplayName</key>
-    <string>WarZoneChanger Certificate</string>
-    <key>PayloadDescription</key>
-    <string>Install WarZoneChanger CA Certificate</string>
-</dict>
-</plist>
-"""
     }
     
     func getCertificateInfo() -> String {
@@ -284,18 +282,13 @@ class CertificateManager: ObservableObject {
         return info
     }
     
-    func getMobileConfigString() -> String {
-        let base64Cert = certData.base64EncodedString()
-        return generateMobileConfig(certBase64: base64Cert)
-    }
-    
     private func showSuccessMessage(_ message: String) {
         DispatchQueue.main.async {
             self.lastMessage = "✅ \(message)"
             self.showMessage = true
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
             self.showMessage = false
         }
     }

@@ -879,8 +879,6 @@ struct CertificateGuideView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var certManager = CertificateManager.shared
     @State private var step = 0
-    @State private var showSaveAlert = false
-    @State private var saveMessage = ""
     
     var body: some View {
         NavigationView {
@@ -894,7 +892,7 @@ struct CertificateGuideView: View {
                         Text("证书安装指南")
                             .font(.system(size: 22, weight: .bold))
                         
-                        Text("为了能够拦截 HTTPS 请求，您需要安装并信任本应用的 CA 证书。")
+                        Text("为了能够拦截 HTTPS 请求，您需要安装并信任本应用的证书。")
                             .font(.system(size: 14))
                             .foregroundColor(.gray)
                             .multilineTextAlignment(.center)
@@ -903,24 +901,23 @@ struct CertificateGuideView: View {
                     .padding(.top, 20)
                     
                     VStack(spacing: 12) {
-                        StepView(number: 1, title: "保存证书文件", description: "点击下方按钮，将证书保存到文件应用", isActive: step >= 0, isCompleted: step > 0)
+                        StepView(number: 1, title: "打开证书安装页面", description: "点击下方按钮，系统会自动跳转到 Safari 下载描述文件", isActive: step >= 0, isCompleted: step > 0)
                         
-                        StepView(number: 2, title: "安装证书", description: "在\"文件\"应用中点击证书文件，系统会跳转到设置安装", isActive: step >= 1, isCompleted: step > 1)
+                        StepView(number: 2, title: "安装证书", description: "在\"设置\"→\"通用\"→\"VPN 与设备管理\"中安装证书", isActive: step >= 1, isCompleted: step > 1)
                         
-                        StepView(number: 3, title: "信任证书", description: "在\"设置\"→\"通用\"→\"关于本机\"→\"证书信任设置\"中开启完全信任", isActive: step >= 2, isCompleted: step > 2)
+                        StepView(number: 3, title: "信任证书（关键！）", description: "在\"设置\"→\"通用\"→\"关于本机\"→\"证书信任设置\"中开启完全信任", isActive: step >= 2, isCompleted: step > 2)
                     }
                     .padding(.horizontal, 16)
                     
                     VStack(spacing: 12) {
                         Button(action: {
-                            let result = certManager.saveCertFileToDocuments()
-                            if result != nil {
+                            if certManager.openCertificateViaHTTPServer() {
                                 step = 1
                             }
                         }) {
                             HStack {
-                                Image(systemName: "doc.badge.plus")
-                                Text("保存并分享证书")
+                                Image(systemName: "safari.fill")
+                                Text("在 Safari 中打开证书安装")
                             }
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
@@ -932,14 +929,14 @@ struct CertificateGuideView: View {
                         
                         HStack(spacing: 12) {
                             Button(action: {
-                                let result = certManager.saveMobileConfigToDocuments()
+                                let result = certManager.saveCertFileToDocuments()
                                 if result != nil {
                                     step = 1
                                 }
                             }) {
                                 HStack {
-                                    Image(systemName: "gearshape.badge.plus")
-                                    Text("保存并分享配置文件")
+                                    Image(systemName: "doc.badge.plus")
+                                    Text("保存并分享证书")
                                 }
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.blue)
@@ -994,11 +991,53 @@ struct CertificateGuideView: View {
                         }
                     }
                     .padding(.horizontal, 16)
-                    .alert("提示", isPresented: $showSaveAlert) {
-                        Button("确定", role: .cancel) { }
-                    } message: {
-                        Text(saveMessage)
+                    
+                    if certManager.showMessage {
+                        Text(certManager.lastMessage)
+                            .font(.system(size: 14))
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(Color.secondary.opacity(0.1))
+                            .cornerRadius(8)
+                            .padding(.horizontal, 16)
                     }
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("📋 详细安装步骤")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.primary)
+                        
+                        VStack(alignment: .leading, spacing: 16) {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("步骤 1: 下载描述文件")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("1. 点击上方\"在 Safari 中打开证书安装\"按钮\n2. 在弹出的提示中点击\"允许\"\n3. 系统会提示\"已下载描述文件\"")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("步骤 2: 安装证书")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("1. 打开\"设置\"应用\n2. 点击\"通用\"\n3. 点击\"VPN 与设备管理\"\n4. 点击\"已下载描述文件\"\n5. 点击\"战区精灵证书\"\n6. 点击右上角\"安装\"\n7. 输入锁屏密码\n8. 再次点击\"安装\"\n9. 点击\"完成\"")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("步骤 3: 完全信任证书（关键！）")
+                                    .font(.system(size: 15, weight: .medium))
+                                    .foregroundColor(.primary)
+                                Text("1. 打开\"设置\"应用\n2. 点击\"通用\"\n3. 点击\"关于本机\"\n4. 滚动到底部，点击\"证书信任设置\"\n5. 找到\"WarZoneChanger Certificate\"\n6. 打开右侧开关（变为绿色）\n7. 弹出警告，点击\"继续\"")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.gray)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
                     
                     VStack(alignment: .leading, spacing: 12) {
                         Text("⚠️ 重要提示")

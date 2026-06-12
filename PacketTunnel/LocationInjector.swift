@@ -14,13 +14,19 @@ class LocationInjector {
     }
     
     func detectAPIType(_ request: String) -> APIType {
-        if request.contains("/ws/geocoder/v1/reverse") {
+        let lowercased = request.lowercased()
+        
+        if lowercased.contains("/ws/geocoder/v1/reverse") {
             return .reverseGeocoder
-        } else if request.contains("/ws/geocoder/v1") {
+        } else if lowercased.contains("/ws/geocoder/v1") {
             return .geocoder
-        } else if request.contains("/ws/district/v1/list") {
+        } else if lowercased.contains("/ws/district/v1/list") {
             return .districtList
-        } else if request.contains("/ws/location/v1/ip") {
+        } else if lowercased.contains("/ws/location/v1/ip") {
+            return .ipLocation
+        } else if lowercased.contains("/geocoder") || lowercased.contains("geocoder") {
+            return .reverseGeocoder
+        } else if lowercased.contains("location") {
             return .ipLocation
         }
         return .unknown

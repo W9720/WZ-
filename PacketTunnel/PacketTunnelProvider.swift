@@ -1,6 +1,7 @@
 import NetworkExtension
 import Foundation
 import Security
+import CommonCrypto
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
@@ -547,17 +548,31 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private func createTLSCertificate() -> (SecKey, Data)? {
         writeLog("[TLS] 开始从预生成数据加载密钥和证书...")
         
-        guard let (privateKey, certData) = loadPreGeneratedTLS() else {
-            writeLog("[TLS] 预生成数据加载失败")
-            return nil
+        if let (privateKey, certData) = loadPreGeneratedTLS() {
+            writeLog("[TLS] 预生成数据加载成功，密钥: \(preGeneratedServerKey.count) bytes, 证书: \(preGeneratedServerCert.count) bytes")
+            return (privateKey, certData)
         }
-        writeLog("[TLS] 预生成数据加载成功，密钥: \(preGeneratedServerKey.count) bytes, 证书: \(preGeneratedServerCert.count) bytes")
-        return (privateKey, certData)
+        
+        writeLog("[TLS] 预生成数据加载失败，尝试动态生成证书...")
+        return generateDynamicCertificate()
     }
     
     private func loadPreGeneratedTLS() -> (SecKey, Data)? {
         let keyData = Data(preGeneratedServerKey)
         let certData = Data(preGeneratedServerCert)
+        
+        writeLog("[TLS] 预生成私钥长度: \(keyData.count) bytes")
+        writeLog("[TLS] 预生成证书长度: \(certData.count) bytes")
+        
+        if keyData.count >= 4 {
+            let format = detectKeyFormat(keyData)
+            writeLog("[TLS] 检测到的私钥格式: \(format)")
+        }
+        
+        if keyData.count < 100 {
+            writeLog("[TLS] ⚠️ 私钥数据太短 (\(keyData.count) bytes)，可能被截断")
+            return nil
+        }
         
         let keyDict: [String: Any] = [
             kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
@@ -567,11 +582,133 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         var error: Unmanaged<CFError>?
         guard let privateKey = SecKeyCreateWithData(keyData as CFData, keyDict as CFDictionary, &error) else {
-            writeLog("[TLS] 从数据创建私钥失败: \(error?.takeRetainedValue().localizedDescription ?? "?")")
+            let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
+            writeLog("[TLS] 从数据创建私钥失败: \(errDesc)")
+            
+            if let cfErr = error?.takeRetainedValue() {
+                let nsErr = cfErr as NSError
+                writeLog("[TLS] 错误代码: \(nsErr.code), 域: \(nsErr.domain)")
+            }
+            
             return nil
         }
         
+        writeLog("[TLS] 私钥创建成功")
         return (privateKey, certData)
+    }
+    
+    private func detectKeyFormat(_ data: Data) -> String {
+        let bytes = [UInt8](data)
+        if bytes.count < 10 {
+            return "数据太短"
+        }
+        
+        if bytes[0] == 0x30 {
+            if bytes.count >= 26 && 
+               bytes[2] == 0x02 && bytes[3] == 0x01 && bytes[4] == 0x00 &&
+               bytes[5] == 0x30 &&
+               bytes[7] == 0x06 {
+                return "PKCS#8 (PrivateKeyInfo)"
+            }
+            if bytes.count >= 10 &&
+               bytes[2] == 0x02 && bytes[3] == 0x01 && bytes[4] == 0x00 {
+                return "PKCS#1 (RSAPrivateKey)"
+            }
+            return "ASN.1 SEQUENCE (可能是PKCS#1或PKCS#8)"
+        }
+        
+        if bytes.count >= 4 && 
+           bytes[0] == 0x2D && bytes[1] == 0x2D && bytes[2] == 0x2D && bytes[3] == 0x2D {
+            return "PEM 格式"
+        }
+        
+        return "未知格式"
+    }
+    
+    private func generateDynamicCertificate() -> (SecKey, Data)? {
+        writeLog("[TLS] 动态生成 RSA 密钥对...")
+        let certGen = CertificateGenerator()
+        guard let (privateKey, publicKey) = certGen.generateRSAKeyPair(keySize: 2048) else {
+            writeLog("[TLS] 生成密钥对失败")
+            return nil
+        }
+        writeLog("[TLS] 密钥对生成成功")
+        
+        writeLog("[TLS] 生成自签名证书（使用CA证书模板）...")
+        guard let certData = generateServerCertificateUsingCATemplate(privateKey: privateKey, publicKey: publicKey) else {
+            writeLog("[TLS] 生成证书失败")
+            return nil
+        }
+        writeLog("[TLS] 证书生成成功，大小: \(certData.count) bytes")
+        
+        guard let cert = SecCertificateCreateWithData(nil, certData as CFData) else {
+            writeLog("[TLS] 验证证书失败 - 无法从数据创建证书对象")
+            return nil
+        }
+        writeLog("[TLS] 证书验证通过")
+        
+        return (privateKey, certData)
+    }
+    
+    private func generateServerCertificateUsingCATemplate(privateKey: SecKey, publicKey: SecKey) -> Data? {
+        let serialNumber = Data([0x01, 0x02, 0x03, 0x04, 0x05])
+        
+        let now = Date()
+        let notBefore = now
+        let notAfter = Calendar.current.date(byAdding: .year, value: 10, to: now) ?? now
+        
+        var builder = [UInt8]()
+        
+        let subject: [String: String] = [
+            "CN": "apis.map.qq.com",
+            "O": "WarZoneChanger",
+            "OU": "VPN",
+            "C": "CN"
+        ]
+        
+        let certGen = CertificateGenerator()
+        
+        builder.append(contentsOf: [0x30, 0x82, 0x03, 0x00])
+        
+        builder.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
+        
+        let issuerName = certGen.encodeName(subject)
+        builder.append(contentsOf: issuerName)
+        
+        builder.append(contentsOf: [0x30, 0x1E])
+        builder.append(contentsOf: certGen.encodeDate(notBefore))
+        builder.append(contentsOf: certGen.encodeDate(notAfter))
+        
+        builder.append(contentsOf: issuerName)
+        
+        guard let publicKeyData = certGen.exportPublicKey(publicKey) else {
+            writeLog("[TLS] 导出公钥失败")
+            return nil
+        }
+        builder.append(contentsOf: publicKeyData)
+        
+        builder.append(contentsOf: [0xA3, 0x18, 0x30, 0x16])
+        builder.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x30, 0x02, 0x01, 0x01])
+        builder.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x03, 0x02, 0x01, 0x06])
+        
+        let tbsCert = Data(builder)
+        
+        guard let signature = certGen.signData(tbsCert, with: privateKey) else {
+            writeLog("[TLS] 签名失败")
+            return nil
+        }
+        
+        var finalCert = [UInt8]()
+        finalCert.append(0x30)
+        finalCert.append(contentsOf: certGen.encodeLength(tbsCert.count + signature.count + 5))
+        finalCert.append(contentsOf: tbsCert)
+        finalCert.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
+        finalCert.append(0x03)
+        finalCert.append(contentsOf: certGen.encodeLength(signature.count + 1))
+        finalCert.append(0x00)
+        finalCert.append(contentsOf: signature)
+        
+        return Data(finalCert)
     }
     
     private func buildX509Certificate(publicKeyData: Data, privateKey: SecKey) -> Data? {
@@ -896,35 +1033,64 @@ class TCPHandler {
         httpBuffer.append(data)
         
         guard let httpStr = String(data: httpBuffer, encoding: .utf8) else { 
-            logger("[HTTP] 无法解码UTF8")
+            logger("[HTTP] 无法解码UTF8，尝试其他编码...")
+            if let altStr = String(data: httpBuffer, encoding: .ascii) {
+                logger("[HTTP] ASCII解码成功，长度: \(altStr.count)")
+                processHTTPRequest(altStr)
+            } else {
+                logger("[HTTP] 所有编码失败，数据长度: \(httpBuffer.count)")
+            }
             return 
         }
+        
+        processHTTPRequest(httpStr)
+    }
+    
+    private func processHTTPRequest(_ httpStr: String) {
         guard httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") else { 
             logger("[HTTP] 等待更多数据... (已缓冲 \(httpBuffer.count) bytes)")
             return 
         }
         
-        let requestPreview = String(httpStr.prefix(300))
+        let requestPreview = String(httpStr.prefix(500))
         logger("[HTTP] 收到请求:")
         logger("[HTTP] 请求预览: \(requestPreview.replacingOccurrences(of: "\r\n", with: " | "))")
         
-        let apiType = LocationInjector.shared.detectAPIType(httpStr)
+        let lowercased = httpStr.lowercased()
+        
+        let isMapRequest = lowercased.contains("map.qq.com") || 
+                           lowercased.contains("ditu.qq.com") ||
+                           lowercased.contains("apis.map.qq.com")
+        
+        if isMapRequest {
+            logger("[HTTP] ✅ 检测到腾讯地图域名请求")
+        }
+        
+        var apiType = LocationInjector.shared.detectAPIType(httpStr)
         logger("[HTTP] API类型: \(apiType)")
+        
+        if apiType == .unknown && isMapRequest {
+            logger("[HTTP] ⚠️ API类型未知，但检测到地图域名，尝试泛化匹配")
+            if lowercased.contains("/ws/") || lowercased.contains("geocoder") || lowercased.contains("location") {
+                apiType = .reverseGeocoder
+                logger("[HTTP] ✅ 泛化匹配成功，使用 reverseGeocoder")
+            }
+        }
         
         if apiType != .unknown {
             logger("[HTTP] ✅ 命中目标API! 返回假响应")
             state = .intercepted
             sendFakeResponse(apiType: apiType)
-        } else if httpStr.contains("map.qq.com") || httpStr.contains("ditu.qq.com") {
+        } else if isMapRequest {
             logger("[HTTP] ⚠️ 相关地图域名请求，检查是否需要拦截")
-            if httpStr.contains("/ws/geocoder") || httpStr.contains("/geocoder") || httpStr.contains("/ws/district") || httpStr.contains("/ws/location") {
+            if lowercased.contains("/ws/geocoder") || lowercased.contains("/geocoder") || lowercased.contains("/ws/district") || lowercased.contains("/ws/location") {
                 logger("[HTTP] ✅ 发现腾讯地图API请求，返回假响应")
                 state = .intercepted
-                sendFakeResponse(apiType: apiType)
+                sendFakeResponse(apiType: .reverseGeocoder)
             } else {
-                logger("[HTTP] ⚠️ 非目标API，关闭连接")
-                sendRST()
-                state = .closed; isClosed = true
+                logger("[HTTP] ⚠️ 非目标API，但属于地图域名，尝试返回默认假响应")
+                state = .intercepted
+                sendFakeResponse(apiType: .reverseGeocoder)
             }
         } else {
             logger("[HTTP] ⚠️ 非目标请求，关闭连接")
@@ -964,6 +1130,8 @@ class TCPHandler {
     
     private func sendFakeResponse(apiType: LocationInjector.APIType = .reverseGeocoder) {
         let location = LocationStore.shared.getSelectedLocation()
+        logger("[拦截] 读取到的位置: \(location != nil ? "已找到" : "未找到，使用默认值")")
+        
         let adcode = location?.adcode ?? "460100"
         let name = location?.name ?? "海口市"
         let province = location?.province ?? "海南省"

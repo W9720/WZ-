@@ -1,5 +1,6 @@
 import Foundation
 import Security
+import CommonCrypto
 
 // MARK: - 证书生成和管理
 
@@ -7,7 +8,7 @@ class CertificateGenerator {
     
     static let shared = CertificateGenerator()
     
-    private init() {}
+    init() {}
     
     // 生成 RSA 密钥对
     func generateRSAKeyPair(keySize: Int = 2048) -> (privateKey: SecKey, publicKey: SecKey)? {
@@ -26,7 +27,8 @@ class CertificateGenerator {
         
         var error: Unmanaged<CFError>?
         guard let privateKey = SecKeyCreateRandomKey(attributes as CFDictionary, &error) else {
-            print("生成密钥对失败: \(error?.takeRetainedValue() ?? "未知错误" as CFError)")
+            let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
+            print("生成密钥对失败: \(errDesc)")
             return nil
         }
         
@@ -223,7 +225,8 @@ class CertificateGenerator {
     private func exportPublicKey(_ publicKey: SecKey) -> Data? {
         var error: Unmanaged<CFError>?
         guard let keyData = SecKeyCopyExternalRepresentation(publicKey, &error) else {
-            print("导出公钥失败: \(error?.takeRetainedValue() ?? "未知错误" as CFError)")
+            let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
+            print("导出公钥失败: \(errDesc)")
             return nil
         }
         
@@ -257,7 +260,8 @@ class CertificateGenerator {
             Data(digestInfo) as CFData,
             &error
         ) else {
-            print("签名失败: \(error?.takeRetainedValue() ?? "未知错误" as CFError)")
+            let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
+            print("签名失败: \(errDesc)")
             return nil
         }
         
@@ -279,7 +283,7 @@ class ServerCertificateGenerator {
     
     static let shared = ServerCertificateGenerator()
     
-    private init() {}
+    init() {}
     
     func generateServerCertificate(
         for host: String,

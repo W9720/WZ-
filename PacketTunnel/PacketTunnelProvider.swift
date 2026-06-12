@@ -551,13 +551,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             writeLog("[TLS] 预生成数据加载失败")
             return nil
         }
-        writeLog("[TLS] 预生成数据加载成功，密钥: \(preGeneratedPrivateKey.count) bytes, 证书: \(preGeneratedCert.count) bytes")
+        writeLog("[TLS] 预生成数据加载成功，密钥: \(preGeneratedServerKey.count) bytes, 证书: \(preGeneratedServerCert.count) bytes")
         return (privateKey, certData)
     }
     
     private func loadPreGeneratedTLS() -> (SecKey, Data)? {
-        let keyData = Data(preGeneratedPrivateKey)
-        let certData = Data(preGeneratedCert)
+        let keyData = Data(preGeneratedServerKey)
+        let certData = Data(preGeneratedServerCert)
         
         let keyDict: [String: Any] = [
             kSecAttrKeyType as String: kSecAttrKeyTypeRSA,

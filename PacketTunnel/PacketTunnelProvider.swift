@@ -584,12 +584,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         guard let privateKey = SecKeyCreateWithData(keyData as CFData, keyDict as CFDictionary, &error) else {
             let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
             writeLog("[TLS] 从数据创建私钥失败: \(errDesc)")
-            
-            if let cfErr = error?.takeRetainedValue() {
-                let nsErr = cfErr as NSError
-                writeLog("[TLS] 错误代码: \(nsErr.code), 域: \(nsErr.domain)")
-            }
-            
             return nil
         }
         

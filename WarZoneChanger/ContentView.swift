@@ -912,7 +912,6 @@ struct CertificateGuideView: View {
                     VStack(spacing: 12) {
                         Button(action: {
                             certManager.openCertificateInSafari()
-                            step = 1
                         }) {
                             HStack {
                                 Image(systemName: "safari")
@@ -955,6 +954,34 @@ struct CertificateGuideView: View {
                                 .frame(height: 44)
                                 .background(Color.blue.opacity(0.1))
                                 .cornerRadius(8)
+                            }
+                        }
+                        
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                if step < 3 {
+                                    step += 1
+                                }
+                            }) {
+                                Text("标记当前步骤完成")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.blue)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(8)
+                            }
+                            
+                            Button(action: {
+                                step = 0
+                            }) {
+                                Text("重置步骤")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.gray)
+                                    .frame(maxWidth: .infinity)
+                                    .frame(height: 44)
+                                    .background(Color.gray.opacity(0.1))
+                                    .cornerRadius(8)
                             }
                         }
                     }

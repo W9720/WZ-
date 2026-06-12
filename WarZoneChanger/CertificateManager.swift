@@ -135,19 +135,76 @@ class CertificateManager: ObservableObject {
     
     func openCertificateInSafari() {
         let base64Cert = certData.base64EncodedString()
-        let dataURL = "data:application/x-x509-ca-cert;base64,\(base64Cert)"
+        let mobileConfig = generateMobileConfig(certBase64: base64Cert)
         
-        if let url = URL(string: dataURL) {
-            if UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url, options: [:]) { success in
+        if let mobileConfigData = mobileConfig.data(using: .utf8) {
+            let fileManager = FileManager.default
+            let tempDir = NSTemporaryDirectory()
+            let filePath = tempDir.appending("WarZoneChanger.mobileconfig")
+            let fileURL = URL(fileURLWithPath: filePath)
+            
+            do {
+                try mobileConfigData.write(to: fileURL)
+                
+                let safariURL = URL(string: "safari://\(fileURL.path)") ?? fileURL
+                
+                UIApplication.shared.open(fileURL, options: [:]) { success in
                     if success {
-                        print("证书已在 Safari 中打开")
+                        print("证书配置文件已在 Safari 中打开")
                     } else {
-                        print("无法打开证书")
+                        print("无法打开证书配置文件")
                     }
                 }
+            } catch {
+                print("保存配置文件失败: \(error)")
             }
         }
+    }
+    
+    private func generateMobileConfig(certBase64: String) -> String {
+        return """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>PayloadType</key>
+            <string>com.apple.security.root</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>PayloadIdentifier</key>
+            <string>com.warzone.changer.ca</string>
+            <key>PayloadUUID</key>
+            <string>\(generateUUID())</string>
+            <key>PayloadDisplayName</key>
+            <string>WarZoneChanger CA Certificate</string>
+            <key>Certificate</key>
+            <data>\(certBase64)</data>
+            <key>PayloadDescription</key>
+            <string>Install CA certificate for WarZoneChanger VPN</string>
+        </dict>
+    </array>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+    <key>PayloadIdentifier</key>
+    <string>com.warzone.changer.config</string>
+    <key>PayloadUUID</key>
+    <string>\(generateUUID())</string>
+    <key>PayloadDisplayName</key>
+    <string>WarZoneChanger Certificate</string>
+    <key>PayloadDescription</key>
+    <string>Install WarZoneChanger CA Certificate</string>
+</dict>
+</plist>
+"""
+    }
+    
+    private func generateUUID() -> String {
+        return UUID().uuidString
     }
     
     func shareCertificate() {

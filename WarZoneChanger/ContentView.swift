@@ -5,11 +5,13 @@ struct ContentView: View {
     @StateObject private var vpnManager = VPNManager.shared
     @StateObject private var cardCodeManager = CardCodeManager.shared
     @StateObject private var announcementManager = AnnouncementManager.shared
+    @StateObject private var certManager = CertificateManager.shared
     @State private var showingLocationPicker = false
     @State private var selectedLocation: SelectedLocation?
     @State private var cardCodeInput = ""
     @State private var showCardCodeInput = false
     @State private var showingSettings = false
+    @State private var showingCertGuide = false
     @State private var currentAnnouncement: Announcement?
     @State private var showingAnnouncement = false
     @State private var showingLogs = false
@@ -77,6 +79,73 @@ struct ContentView: View {
                         .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
                         .padding(.horizontal, 16)
                         .padding(.top, -40)
+                        
+                        // 证书状态卡片
+                        VStack(spacing: 12) {
+                            HStack(alignment: .center, spacing: 12) {
+                                ZStack {
+                                    Circle()
+                                        .fill(Color.blue.opacity(0.2))
+                                        .frame(width: 48, height: 48)
+                                    
+                                    Image(systemName: "lock.shield.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.blue)
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("HTTPS 证书")
+                                        .font(.system(size: 16, weight: .semibold))
+                                    Text("用于拦截 HTTPS 请求")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.gray)
+                                }
+                                
+                                Spacer()
+                                
+                                Button(action: {
+                                    showingCertGuide = true
+                                }) {
+                                    HStack(spacing: 4) {
+                                        Text("安装引导")
+                                            .font(.system(size: 14, weight: .medium))
+                                        Image(systemName: "chevron.right")
+                                            .font(.system(size: 12))
+                                    }
+                                    .foregroundColor(.blue)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.blue.opacity(0.1))
+                                    .cornerRadius(8)
+                                }
+                            }
+                            
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("📱 安装说明")
+                                    .font(.system(size: 14, weight: .medium))
+                                
+                                Text("点击\"安装引导\"后，按以下步骤操作：")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.gray)
+                                
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Text("1. 点击安装引导 → 在 Safari 中打开证书")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.gray)
+                                    Text("2. 在\"设置\"→\"通用\"→\"VPN与设备管理\"安装证书")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.gray)
+                                    Text("3. 在\"设置\"→\"通用\"→\"关于本机\"开启证书信任")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.gray)
+                                }
+                            }
+                        }
+                        .padding(16)
+                        .background(Color(UIColor.systemBackground))
+                        .cornerRadius(16)
+                        .shadow(color: .gray.opacity(0.1), radius: 8, x: 0, y: 4)
+                        .padding(.horizontal, 16)
                         
                         // 卡密信息卡片
                         if cardCodeManager.isLoggedIn, let cardInfo = cardCodeManager.cardInfo {
@@ -368,6 +437,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
+        }
+        .sheet(isPresented: $showingCertGuide) {
+            CertificateGuideView()
         }
         .onAppear {
             selectedLocation = LocationStore.shared.getSelectedLocation()
@@ -800,5 +872,188 @@ struct LocationPickerView: View {
             selectedLocation = location
             dismiss()
         }
+    }
+}
+
+struct CertificateGuideView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var certManager = CertificateManager.shared
+    @State private var step = 0
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 20) {
+                    VStack(spacing: 16) {
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 60))
+                            .foregroundColor(.blue)
+                        
+                        Text("证书安装指南")
+                            .font(.system(size: 22, weight: .bold))
+                        
+                        Text("为了能够拦截 HTTPS 请求，您需要安装并信任本应用的 CA 证书。")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 20)
+                    }
+                    .padding(.top, 20)
+                    
+                    VStack(spacing: 12) {
+                        StepView(number: 1, title: "打开证书", description: "点击下方按钮，在 Safari 中打开证书文件", isActive: step >= 0, isCompleted: step > 0)
+                        
+                        StepView(number: 2, title: "安装证书", description: "在\"设置\"→\"通用\"→\"VPN与设备管理\"中安装证书", isActive: step >= 1, isCompleted: step > 1)
+                        
+                        StepView(number: 3, title: "信任证书", description: "在\"设置\"→\"通用\"→\"关于本机\"→\"证书信任设置\"中开启完全信任", isActive: step >= 2, isCompleted: step > 2)
+                    }
+                    .padding(.horizontal, 16)
+                    
+                    VStack(spacing: 12) {
+                        Button(action: {
+                            certManager.openCertificateInSafari()
+                            step = 1
+                        }) {
+                            HStack {
+                                Image(systemName: "safari")
+                                Text("在 Safari 中打开证书")
+                            }
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 50)
+                            .background(Color.blue)
+                            .cornerRadius(12)
+                        }
+                        
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                certManager.shareCertificate()
+                            }) {
+                                HStack {
+                                    Image(systemName: "square.and.arrow.up")
+                                    Text("分享证书")
+                                }
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.blue)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                            
+                            Button(action: {
+                                certManager.copyCertificateToPasteboard()
+                            }) {
+                                HStack {
+                                    Image(systemName: "doc.on.doc")
+                                    Text("复制证书")
+                                }
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.blue)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 44)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("⚠️ 重要提示")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.orange)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("• 如果王者荣耀使用 HTTP（80端口），无需安装证书")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                            Text("• 如果王者荣耀使用 HTTPS（443端口），必须安装此证书")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                            Text("• 即使安装了证书，证书钉扎（Certificate Pinning）仍可能导致拦截失败")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                            Text("• 此证书仅用于本应用的 VPN 拦截功能，不会影响其他应用")
+                                .font(.system(size: 13))
+                                .foregroundColor(.gray)
+                        }
+                    }
+                    .padding(16)
+                    .background(Color.orange.opacity(0.05))
+                    .cornerRadius(12)
+                    .padding(.horizontal, 16)
+                    
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("证书信息")
+                            .font(.system(size: 14, weight: .semibold))
+                        
+                        Text(certManager.getCertificateInfo())
+                            .font(.system(size: 12, design: .monospaced))
+                            .foregroundColor(.gray)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(16)
+                    .background(Color(UIColor.systemGray6))
+                    .cornerRadius(12)
+                    .padding(.horizontal, 16)
+                    
+                    Spacer()
+                }
+            }
+            .navigationTitle("证书安装")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+}
+
+struct StepView: View {
+    let number: Int
+    let title: String
+    let description: String
+    let isActive: Bool
+    let isCompleted: Bool
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(isCompleted ? Color.green : (isActive ? Color.blue : Color.gray.opacity(0.3)))
+                    .frame(width: 32, height: 32)
+                
+                if isCompleted {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                } else {
+                    Text("\(number)")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(isActive ? .primary : .gray)
+                
+                Text(description)
+                    .font(.system(size: 13))
+                    .foregroundColor(.gray)
+            }
+            
+            Spacer()
+        }
+        .padding(12)
+        .background(isActive ? Color.blue.opacity(0.05) : Color(UIColor.systemGray6))
+        .cornerRadius(10)
     }
 }

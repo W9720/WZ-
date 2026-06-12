@@ -905,26 +905,24 @@ class TCPHandler {
         }
         
         let requestPreview = String(httpStr.prefix(300))
-        logger("[HTTP] 收到请求 (目标Host: \(targetHost), 目标Path: \(targetPath)):")
+        logger("[HTTP] 收到请求:")
         logger("[HTTP] 请求预览: \(requestPreview.replacingOccurrences(of: "\r\n", with: " | "))")
         
-        let hostMatch = httpStr.contains(targetHost)
-        let pathMatch = httpStr.contains(targetPath)
+        let apiType = LocationInjector.shared.detectAPIType(httpStr)
+        logger("[HTTP] API类型: \(apiType)")
         
-        logger("[HTTP] Host匹配: \(hostMatch), Path匹配: \(pathMatch)")
-        
-        if hostMatch && pathMatch {
-            logger("[HTTP] ✅ 命中目标! 返回假响应")
+        if apiType != .unknown {
+            logger("[HTTP] ✅ 命中目标API! 返回假响应")
             state = .intercepted
-            sendFakeResponse()
+            sendFakeResponse(apiType: apiType)
         } else if httpStr.contains("map.qq.com") || httpStr.contains("ditu.qq.com") {
             logger("[HTTP] ⚠️ 相关地图域名请求，检查是否需要拦截")
-            if httpStr.contains("/ws/geocoder") || httpStr.contains("/geocoder") {
-                logger("[HTTP] ✅ 发现地理编码请求，返回假响应")
+            if httpStr.contains("/ws/geocoder") || httpStr.contains("/geocoder") || httpStr.contains("/ws/district") || httpStr.contains("/ws/location") {
+                logger("[HTTP] ✅ 发现腾讯地图API请求，返回假响应")
                 state = .intercepted
-                sendFakeResponse()
+                sendFakeResponse(apiType: apiType)
             } else {
-                logger("[HTTP] ⚠️ 非地理编码请求，关闭连接")
+                logger("[HTTP] ⚠️ 非目标API，关闭连接")
                 sendRST()
                 state = .closed; isClosed = true
             }
@@ -964,21 +962,22 @@ class TCPHandler {
         packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
     }
     
-    private func sendFakeResponse() {
+    private func sendFakeResponse(apiType: LocationInjector.APIType = .reverseGeocoder) {
         let location = LocationStore.shared.getSelectedLocation()
         let adcode = location?.adcode ?? "460100"
         let name = location?.name ?? "海口市"
         let province = location?.province ?? "海南省"
         let city = location?.city ?? "海口市"
         
+        logger("[拦截] ✅ API类型: \(apiType)")
         logger("[拦截] ✅ 位置: \(province) \(city) \(name) (adcode: \(adcode))")
         logger("[拦截] isHTTPS: \(isHTTPS), isIPv6: \(isIPv6)")
         
-        let fakeBody = LocationInjector.shared.buildFakeResponse(adcode: adcode, regionName: name)
+        let fakeBody = LocationInjector.shared.buildFakeResponse(for: apiType, adcode: adcode, regionName: name)
         let bodyData = fakeBody.data(using: .utf8) ?? Data()
         
         logger("[拦截] 假响应体长度: \(bodyData.count) bytes")
-        logger("[拦截] 假响应预览: \(fakeBody.prefix(200))")
+        logger("[拦截] 假响应预览: \(fakeBody.prefix(300))")
         
         let response = "HTTP/1.1 200 OK\r\n" +
             "Content-Type: application/json; charset=utf-8\r\n" +

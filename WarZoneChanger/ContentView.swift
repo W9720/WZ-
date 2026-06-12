@@ -915,17 +915,12 @@ struct CertificateGuideView: View {
                         Button(action: {
                             let result = certManager.saveCertFileToDocuments()
                             if result != nil {
-                                saveMessage = "证书已保存到文件应用！\n\n请打开\"文件\"应用，找到 WarZoneChanger.cer 文件，点击它即可安装。"
-                                showSaveAlert = true
                                 step = 1
-                            } else {
-                                saveMessage = "保存失败，请重试"
-                                showSaveAlert = true
                             }
                         }) {
                             HStack {
                                 Image(systemName: "doc.badge.plus")
-                                Text("保存证书到文件应用")
+                                Text("保存并分享证书")
                             }
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
@@ -939,17 +934,12 @@ struct CertificateGuideView: View {
                             Button(action: {
                                 let result = certManager.saveMobileConfigToDocuments()
                                 if result != nil {
-                                    saveMessage = "配置文件已保存！\n\n请在\"文件\"应用中点击 WarZoneChanger.mobileconfig 文件。"
-                                    showSaveAlert = true
                                     step = 1
-                                } else {
-                                    saveMessage = "保存失败，请重试"
-                                    showSaveAlert = true
                                 }
                             }) {
                                 HStack {
                                     Image(systemName: "gearshape.badge.plus")
-                                    Text("保存配置文件")
+                                    Text("保存并分享配置文件")
                                 }
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.blue)
@@ -961,8 +951,6 @@ struct CertificateGuideView: View {
                             
                             Button(action: {
                                 certManager.copyCertificateToPasteboard()
-                                saveMessage = "证书已复制到剪贴板！\n\n您可以通过 AirDrop 或邮件发送到电脑，然后用 AirDrop 传回 iPhone 安装。"
-                                showSaveAlert = true
                             }) {
                                 HStack {
                                     Image(systemName: "doc.on.doc")

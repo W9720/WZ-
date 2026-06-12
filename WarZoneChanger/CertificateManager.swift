@@ -136,9 +136,12 @@ class CertificateManager: ObservableObject {
             print("文件存在: \(fileExists)")
             
             if fileExists {
-                showSuccessMessage("证书已保存到文件应用")
+                print("开始分享文件...")
+                shareFile(url: certURL)
+                showSuccessMessage("证书已准备好，请在分享面板中选择操作")
             } else {
                 showErrorMessage("文件不存在")
+                return nil
             }
             
             return certURL
@@ -146,6 +149,23 @@ class CertificateManager: ObservableObject {
             print("保存证书失败: \(error.localizedDescription)")
             showErrorMessage("保存失败: \(error.localizedDescription)")
             return nil
+        }
+    }
+    
+    private func shareFile(url: URL) {
+        DispatchQueue.main.async {
+            let activityVC = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+            
+            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+               let rootVC = windowScene.windows.first?.rootViewController {
+                activityVC.popoverPresentationController?.sourceView = rootVC.view
+                activityVC.popoverPresentationController?.sourceRect = CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0)
+                activityVC.popoverPresentationController?.permittedArrowDirections = []
+                
+                rootVC.present(activityVC, animated: true)
+            } else {
+                print("无法获取 rootViewController")
+            }
         }
     }
     
@@ -178,7 +198,9 @@ class CertificateManager: ObservableObject {
             print("文件存在: \(fileExists)")
             
             if fileExists {
-                showSuccessMessage("配置文件已保存")
+                print("开始分享配置文件...")
+                shareFile(url: configURL)
+                showSuccessMessage("配置文件已准备好，请在分享面板中选择操作")
             }
             
             return configURL

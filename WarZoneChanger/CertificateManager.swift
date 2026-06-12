@@ -110,14 +110,14 @@ class CertificateManager: ObservableObject {
         return certData
     }
     
-    func saveCertificateToDisk() -> URL? {
+    func saveCertFileToDocuments() -> URL? {
         let fileManager = FileManager.default
-        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.com.warzone.changer") else {
-            print("无法访问 App Group 容器")
+        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("无法访问 Documents 目录")
             return nil
         }
         
-        let certURL = containerURL.appendingPathComponent("WarZoneChanger_CA.cer")
+        let certURL = documentsDir.appendingPathComponent("WarZoneChanger.cer")
         
         do {
             try certData.write(to: certURL)
@@ -129,36 +129,49 @@ class CertificateManager: ObservableObject {
         }
     }
     
+    func saveMobileConfigToDocuments() -> URL? {
+        let base64Cert = certData.base64EncodedString()
+        let mobileConfig = generateMobileConfig(certBase64: base64Cert)
+        
+        guard let configData = mobileConfig.data(using: .utf8) else {
+            print("配置文件编码失败")
+            return nil
+        }
+        
+        let fileManager = FileManager.default
+        guard let documentsDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            print("无法访问 Documents 目录")
+            return nil
+        }
+        
+        let configURL = documentsDir.appendingPathComponent("WarZoneChanger.mobileconfig")
+        
+        do {
+            try configData.write(to: configURL)
+            print("配置文件已保存到: \(configURL.path)")
+            return configURL
+        } catch {
+            print("保存配置文件失败: \(error)")
+            return nil
+        }
+    }
+    
     func getCertificateBase64() -> String {
         return certData.base64EncodedString()
     }
     
-    func openCertificateInSafari() {
+    func copyCertificateToPasteboard() {
+        let base64Cert = certData.base64EncodedString()
+        let pemString = "-----BEGIN CERTIFICATE-----\n\(base64Cert)\n-----END CERTIFICATE-----"
+        UIPasteboard.general.string = pemString
+        print("证书已复制到剪贴板")
+    }
+    
+    func copyMobileConfigToPasteboard() {
         let base64Cert = certData.base64EncodedString()
         let mobileConfig = generateMobileConfig(certBase64: base64Cert)
-        
-        if let mobileConfigData = mobileConfig.data(using: .utf8) {
-            let fileManager = FileManager.default
-            let tempDir = NSTemporaryDirectory()
-            let filePath = tempDir.appending("WarZoneChanger.mobileconfig")
-            let fileURL = URL(fileURLWithPath: filePath)
-            
-            do {
-                try mobileConfigData.write(to: fileURL)
-                
-                let safariURL = URL(string: "safari://\(fileURL.path)") ?? fileURL
-                
-                UIApplication.shared.open(fileURL, options: [:]) { success in
-                    if success {
-                        print("证书配置文件已在 Safari 中打开")
-                    } else {
-                        print("无法打开证书配置文件")
-                    }
-                }
-            } catch {
-                print("保存配置文件失败: \(error)")
-            }
-        }
+        UIPasteboard.general.string = mobileConfig
+        print("配置文件已复制到剪贴板")
     }
     
     private func generateMobileConfig(certBase64: String) -> String {
@@ -177,7 +190,7 @@ class CertificateManager: ObservableObject {
             <key>PayloadIdentifier</key>
             <string>com.warzone.changer.ca</string>
             <key>PayloadUUID</key>
-            <string>\(generateUUID())</string>
+            <string>\(UUID().uuidString)</string>
             <key>PayloadDisplayName</key>
             <string>WarZoneChanger CA Certificate</string>
             <key>Certificate</key>
@@ -193,7 +206,7 @@ class CertificateManager: ObservableObject {
     <key>PayloadIdentifier</key>
     <string>com.warzone.changer.config</string>
     <key>PayloadUUID</key>
-    <string>\(generateUUID())</string>
+    <string>\(UUID().uuidString)</string>
     <key>PayloadDisplayName</key>
     <string>WarZoneChanger Certificate</string>
     <key>PayloadDescription</key>
@@ -203,30 +216,6 @@ class CertificateManager: ObservableObject {
 """
     }
     
-    private func generateUUID() -> String {
-        return UUID().uuidString
-    }
-    
-    func shareCertificate() {
-        if let certURL = saveCertificateToDisk() {
-            let activityVC = UIActivityViewController(activityItems: [certURL], applicationActivities: nil)
-            
-            if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-               let rootVC = windowScene.windows.first?.rootViewController {
-                activityVC.popoverPresentationController?.sourceView = rootVC.view
-                activityVC.popoverPresentationController?.sourceRect = CGRect(x: rootVC.view.bounds.midX, y: rootVC.view.bounds.midY, width: 0, height: 0)
-                activityVC.popoverPresentationController?.permittedArrowDirections = []
-                rootVC.present(activityVC, animated: true)
-            }
-        }
-    }
-    
-    func copyCertificateToPasteboard() {
-        let base64Cert = certData.base64EncodedString()
-        let pemString = "-----BEGIN CERTIFICATE-----\n\(base64Cert)\n-----END CERTIFICATE-----"
-        UIPasteboard.general.string = pemString
-    }
-    
     func getCertificateInfo() -> String {
         var info = "证书信息:\n"
         info += "格式: DER (.cer)\n"
@@ -234,5 +223,10 @@ class CertificateManager: ObservableObject {
         info += "Common Name: apis.map.qq.com\n"
         info += "有效期: 10年\n"
         return info
+    }
+    
+    func getMobileConfigString() -> String {
+        let base64Cert = certData.base64EncodedString()
+        return generateMobileConfig(certBase64: base64Cert)
     }
 }

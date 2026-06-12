@@ -129,10 +129,10 @@ struct ContentView: View {
                                     .foregroundColor(.gray)
                                 
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text("1. 点击安装引导 → 在 Safari 中打开证书")
+                                    Text("1. 点击\"保存证书到文件应用\"")
                                         .font(.system(size: 11))
                                         .foregroundColor(.gray)
-                                    Text("2. 在\"设置\"→\"通用\"→\"VPN与设备管理\"安装证书")
+                                    Text("2. 打开\"文件\"应用 → 找到证书并点击安装")
                                         .font(.system(size: 11))
                                         .foregroundColor(.gray)
                                     Text("3. 在\"设置\"→\"通用\"→\"关于本机\"开启证书信任")
@@ -901,9 +901,9 @@ struct CertificateGuideView: View {
                     .padding(.top, 20)
                     
                     VStack(spacing: 12) {
-                        StepView(number: 1, title: "打开证书", description: "点击下方按钮，在 Safari 中打开证书文件", isActive: step >= 0, isCompleted: step > 0)
+                        StepView(number: 1, title: "保存证书文件", description: "点击下方按钮，将证书保存到文件应用", isActive: step >= 0, isCompleted: step > 0)
                         
-                        StepView(number: 2, title: "安装证书", description: "在\"设置\"→\"通用\"→\"VPN与设备管理\"中安装证书", isActive: step >= 1, isCompleted: step > 1)
+                        StepView(number: 2, title: "安装证书", description: "在\"文件\"应用中点击证书文件，系统会跳转到设置安装", isActive: step >= 1, isCompleted: step > 1)
                         
                         StepView(number: 3, title: "信任证书", description: "在\"设置\"→\"通用\"→\"关于本机\"→\"证书信任设置\"中开启完全信任", isActive: step >= 2, isCompleted: step > 2)
                     }
@@ -911,11 +911,13 @@ struct CertificateGuideView: View {
                     
                     VStack(spacing: 12) {
                         Button(action: {
-                            certManager.openCertificateInSafari()
+                            if certManager.saveCertFileToDocuments() != nil {
+                                step = 1
+                            }
                         }) {
                             HStack {
-                                Image(systemName: "safari")
-                                Text("在 Safari 中打开证书")
+                                Image(systemName: "doc.badge.plus")
+                                Text("保存证书到文件应用")
                             }
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
@@ -927,11 +929,13 @@ struct CertificateGuideView: View {
                         
                         HStack(spacing: 12) {
                             Button(action: {
-                                certManager.shareCertificate()
+                                if certManager.saveMobileConfigToDocuments() != nil {
+                                    step = 1
+                                }
                             }) {
                                 HStack {
-                                    Image(systemName: "square.and.arrow.up")
-                                    Text("分享证书")
+                                    Image(systemName: "gearshape.badge.plus")
+                                    Text("保存配置文件")
                                 }
                                 .font(.system(size: 14, weight: .medium))
                                 .foregroundColor(.blue)

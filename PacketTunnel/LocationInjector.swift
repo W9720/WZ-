@@ -47,12 +47,19 @@ class LocationInjector {
         let city = getCityByAdcode(adcode: adcode)
         let district = regionName
         let formattedAddress = "\(province)\(city)\(district)"
+        let cityCode = "156\(adcode.prefix(4))00"
+        let fullName = "中国,\(province),\(city),\(district)"
+        let phoneAreaCode = getPhoneAreaCode(adcode: adcode)
         
         let response: [String: Any] = [
             "status": 0,
-            "message": "query ok",
+            "message": "Success",
             "request_id": generateRequestId(),
             "result": [
+                "location": [
+                    "lat": location.lat,
+                    "lng": location.lng
+                ],
                 "address": formattedAddress,
                 "address_component": [
                     "nation": "中国",
@@ -65,8 +72,9 @@ class LocationInjector {
                 "ad_info": [
                     "nation_code": "156",
                     "adcode": adcode,
-                    "city_code": String(adcode.prefix(4)) + "00",
-                    "name": district,
+                    "phone_area_code": phoneAreaCode,
+                    "city_code": cityCode,
+                    "name": fullName,
                     "location": [
                         "lat": location.lat,
                         "lng": location.lng
@@ -74,21 +82,67 @@ class LocationInjector {
                     "nation": "中国",
                     "province": province,
                     "city": city,
-                    "district": district
+                    "district": district,
+                    "_distance": 0
                 ],
-                "location": [
-                    "lat": location.lat,
-                    "lng": location.lng
-                ],
-                "formatted_addresses": [
-                    "recommend": formattedAddress,
-                    "rough": "\(province)\(city)"
-                ],
-                "address_reference": [:]
+                "address_reference": [
+                    "town": [
+                        "id": adcode + "001",
+                        "title": "街道",
+                        "location": [
+                            "lat": location.lat,
+                            "lng": location.lng
+                        ],
+                        "_distance": 0,
+                        "_dir_desc": "内"
+                    ]
+                ]
             ]
         ]
         
         return toJSON(response)
+    }
+    
+    private func getPhoneAreaCode(adcode: String) -> String {
+        let prefix = String(adcode.prefix(2))
+        
+        switch prefix {
+        case "11": return "010"
+        case "12": return "022"
+        case "31": return "021"
+        case "50": return "023"
+        case "13": return "0311"
+        case "14": return "0351"
+        case "15": return "0471"
+        case "21": return "024"
+        case "22": return "0431"
+        case "23": return "0451"
+        case "32": return "025"
+        case "33": return "0571"
+        case "34": return "0551"
+        case "35": return "0591"
+        case "36": return "0791"
+        case "37": return "0531"
+        case "41": return "0371"
+        case "42": return "027"
+        case "43": return "0731"
+        case "44": return "020"
+        case "45": return "0771"
+        case "46": return "0898"
+        case "51": return "028"
+        case "52": return "0851"
+        case "53": return "0871"
+        case "54": return "0891"
+        case "61": return "029"
+        case "62": return "0931"
+        case "63": return "0971"
+        case "64": return "0951"
+        case "65": return "0991"
+        case "71": return "02"
+        case "81": return "00852"
+        case "82": return "00853"
+        default: return "0371"
+        }
     }
     
     private func buildGeocoderResponse(adcode: String, regionName: String) -> String {

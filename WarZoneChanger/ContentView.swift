@@ -802,5 +802,3 @@ struct LocationPickerView: View {
         }
     }
 }
-
-}

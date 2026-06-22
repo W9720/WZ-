@@ -393,22 +393,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         tcpConnections = tcpConnections.filter { !$0.value.isClosed }
     }
-    
-    private func checksum(_ data: Data) -> UInt16 {
-        var sum: UInt32 = 0
-        var i = 0
-        while i + 1 < data.count {
-            sum += UInt32(UInt16(data[i]) << 8 | UInt16(data[i+1]))
-            i += 2
-        }
-        if i < data.count {
-            sum += UInt32(data[i]) << 8
-        }
-        while sum >> 16 != 0 {
-            sum = (sum & 0xFFFF) + (sum >> 16)
-        }
-        return UInt16(~sum & 0xFFFF)
-    }
 }
 
 class TCPHandler {
@@ -427,6 +411,22 @@ class TCPHandler {
     var state: State = .closed
     var httpBuffer = Data()
     var isClosed = false
+    
+    private func checksum(_ data: Data) -> UInt16 {
+        var sum: UInt32 = 0
+        var i = 0
+        while i + 1 < data.count {
+            sum += UInt32(UInt16(data[i]) << 8 | UInt16(data[i+1]))
+            i += 2
+        }
+        if i < data.count {
+            sum += UInt32(data[i]) << 8
+        }
+        while sum >> 16 != 0 {
+            sum = (sum & 0xFFFF) + (sum >> 16)
+        }
+        return UInt16(~sum & 0xFFFF)
+    }
     
     enum State { case closed, synRecv, established, intercepted }
     

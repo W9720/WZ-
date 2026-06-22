@@ -441,6 +441,13 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         } else {
             let isHTTPS = (dstPort == 443)
             let tls = isHTTPS ? getOrCreateTLS() : nil
+            
+            if isHTTPS && tls == nil {
+                writeLog("[TCP] HTTPS连接但TLS证书不可用，发送RST关闭连接")
+                sendRSTForPacket(packet)
+                return
+            }
+            
             let conn = TCPHandler(
                 packetFlow: packetFlow,
                 srcIP: srcIP, srcPort: srcPort,
@@ -651,8 +658,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let notBefore = now
         let notAfter = Calendar.current.date(byAdding: .year, value: 10, to: now) ?? now
         
-        var builder = [UInt8]()
-        
         let subject: [String: String] = [
             "CN": "apis.map.qq.com",
             "O": "WarZoneChanger",
@@ -661,31 +666,51 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         ]
         
         let certGen = CertificateGenerator()
-        
-        builder.append(contentsOf: [0x30, 0x82, 0x03, 0x00])
-        
-        builder.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
-        
         let issuerName = certGen.encodeName(subject)
-        builder.append(contentsOf: issuerName)
         
-        builder.append(contentsOf: [0x30, 0x1E])
-        builder.append(contentsOf: certGen.encodeDate(notBefore))
-        builder.append(contentsOf: certGen.encodeDate(notAfter))
+        var tbsCertBuilder = [UInt8]()
+        tbsCertBuilder.append(0x30)
         
-        builder.append(contentsOf: issuerName)
+        var tbsContent = [UInt8]()
+        
+        tbsContent.append(0x02)
+        tbsContent.append(contentsOf: certGen.encodeLength(serialNumber.count))
+        tbsContent.append(contentsOf: serialNumber)
+        
+        tbsContent.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
+        
+        tbsContent.append(contentsOf: issuerName)
+        
+        tbsContent.append(0x30)
+        tbsContent.append(contentsOf: certGen.encodeLength(certGen.encodeDate(notBefore).count + certGen.encodeDate(notAfter).count))
+        tbsContent.append(contentsOf: certGen.encodeDate(notBefore))
+        tbsContent.append(contentsOf: certGen.encodeDate(notAfter))
+        
+        tbsContent.append(contentsOf: issuerName)
         
         guard let publicKeyData = certGen.exportPublicKey(publicKey) else {
             writeLog("[TLS] 导出公钥失败")
             return nil
         }
-        builder.append(contentsOf: publicKeyData)
+        tbsContent.append(contentsOf: publicKeyData)
         
-        builder.append(contentsOf: [0xA3, 0x18, 0x30, 0x16])
-        builder.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x30, 0x02, 0x01, 0x01])
-        builder.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x03, 0x02, 0x01, 0x06])
+        var extensions = [UInt8]()
+        extensions.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x30, 0x02, 0x01, 0x01])
+        extensions.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x03, 0x02, 0x01, 0x06])
         
-        let tbsCert = Data(builder)
+        var extensionsWrapper = [UInt8]()
+        extensionsWrapper.append(0x30)
+        extensionsWrapper.append(contentsOf: certGen.encodeLength(extensions.count))
+        extensionsWrapper.append(contentsOf: extensions)
+        
+        tbsContent.append(0xA3)
+        tbsContent.append(contentsOf: certGen.encodeLength(extensionsWrapper.count))
+        tbsContent.append(contentsOf: extensionsWrapper)
+        
+        tbsCertBuilder.append(contentsOf: certGen.encodeLength(tbsContent.count))
+        tbsCertBuilder.append(contentsOf: tbsContent)
+        
+        let tbsCert = Data(tbsCertBuilder)
         
         guard let signature = certGen.signData(tbsCert, with: privateKey) else {
             writeLog("[TLS] 签名失败")
@@ -694,7 +719,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         
         var finalCert = [UInt8]()
         finalCert.append(0x30)
-        finalCert.append(contentsOf: certGen.encodeLength(tbsCert.count + signature.count + 5))
+        finalCert.append(contentsOf: certGen.encodeLength(tbsCert.count + 15 + signature.count + 2 + 1))
         finalCert.append(contentsOf: tbsCert)
         finalCert.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
         finalCert.append(0x03)

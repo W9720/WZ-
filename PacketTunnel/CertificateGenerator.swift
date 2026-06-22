@@ -40,15 +40,12 @@ class CertificateGenerator {
         return (privateKey, publicKey)
     }
     
-    // 生成 CA 根证书
     func generateCACertificate(privateKey: SecKey, publicKey: SecKey) -> Data? {
         let serialNumber = Data([0x01, 0x02, 0x03, 0x04, 0x05])
         
         let now = Date()
         let notBefore = now
         let notAfter = Calendar.current.date(byAdding: .year, value: 10, to: now) ?? now
-        
-        var builder = [UInt8]()
         
         let subject: [String: String] = [
             "CN": "WarZoneChanger Root CA",
@@ -57,30 +54,52 @@ class CertificateGenerator {
             "C": "CN"
         ]
         
-        builder.append(contentsOf: [0x30, 0x82, 0x03, 0x00])
-        
-        builder.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
-        
         let issuerName = encodeName(subject)
-        builder.append(contentsOf: issuerName)
         
-        builder.append(contentsOf: [0x30, 0x1E])
-        builder.append(contentsOf: encodeDate(notBefore))
-        builder.append(contentsOf: encodeDate(notAfter))
+        var tbsCertBuilder = [UInt8]()
         
-        builder.append(contentsOf: issuerName)
+        tbsCertBuilder.append(0x30)
+        
+        var tbsContent = [UInt8]()
+        
+        tbsContent.append(0x02)
+        tbsContent.append(contentsOf: encodeLength(serialNumber.count))
+        tbsContent.append(contentsOf: serialNumber)
+        
+        tbsContent.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
+        
+        tbsContent.append(contentsOf: issuerName)
+        
+        tbsContent.append(0x30)
+        tbsContent.append(contentsOf: encodeLength(encodeDate(notBefore).count + encodeDate(notAfter).count))
+        tbsContent.append(contentsOf: encodeDate(notBefore))
+        tbsContent.append(contentsOf: encodeDate(notAfter))
+        
+        tbsContent.append(contentsOf: issuerName)
         
         guard let publicKeyData = exportPublicKey(publicKey) else {
             print("导出公钥失败")
             return nil
         }
-        builder.append(contentsOf: publicKeyData)
+        tbsContent.append(contentsOf: publicKeyData)
         
-        builder.append(contentsOf: [0xA3, 0x18, 0x30, 0x16])
-        builder.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x30, 0x02, 0x01, 0x01])
-        builder.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x03, 0x02, 0x01, 0x06])
+        var extensions = [UInt8]()
+        extensions.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x30, 0x02, 0x01, 0x01])
+        extensions.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x03, 0x02, 0x01, 0x06])
         
-        let tbsCert = Data(builder)
+        var extensionsWrapper = [UInt8]()
+        extensionsWrapper.append(0x30)
+        extensionsWrapper.append(contentsOf: encodeLength(extensions.count))
+        extensionsWrapper.append(contentsOf: extensions)
+        
+        tbsContent.append(0xA3)
+        tbsContent.append(contentsOf: encodeLength(extensionsWrapper.count))
+        tbsContent.append(contentsOf: extensionsWrapper)
+        
+        tbsCertBuilder.append(contentsOf: encodeLength(tbsContent.count))
+        tbsCertBuilder.append(contentsOf: tbsContent)
+        
+        let tbsCert = Data(tbsCertBuilder)
         
         guard let signature = signData(tbsCert, with: privateKey) else {
             print("签名失败")
@@ -89,7 +108,7 @@ class CertificateGenerator {
         
         var finalCert = [UInt8]()
         finalCert.append(0x30)
-        finalCert.append(contentsOf: encodeLength(tbsCert.count + signature.count + 5))
+        finalCert.append(contentsOf: encodeLength(tbsCert.count + 15 + signature.count + 2 + 1))
         finalCert.append(contentsOf: tbsCert)
         finalCert.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
         finalCert.append(0x03)

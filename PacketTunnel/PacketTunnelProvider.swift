@@ -1,7 +1,5 @@
 import NetworkExtension
 import Foundation
-import Security
-import CommonCrypto
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
     
@@ -13,9 +11,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
     private let appGroupId = "group.com.warzone.changer"
     private let logQueue = DispatchQueue(label: "vpn.log")
     private var packetCount: Int = 0
-    private var tlsIdentity: (SecIdentity, SecCertificate)?
-    private var tlsCertData: Data?         // X.509 DER 证书数据
-    private var tlsPrivateKey: SecKey?     // RSA 私钥
     
     private let fallbackIPs: Set<String> = [
         "119.147.13.124", "119.147.13.222", "119.147.14.89",
@@ -92,12 +87,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                 
                 self.writeLog("[PacketTunnel] 隧道启动成功，IPv4路由数: \(ipv4Routes.count), IPv6路由数: \(self.targetIPv6s.count)")
                 
-                DispatchQueue.global().async {
-                    self.writeLog("[PacketTunnel] 预生成TLS证书...")
-                    _ = self.getOrCreateTLS()
-                    self.writeLog("[PacketTunnel] TLS证书准备完成")
-                }
-                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     self.startForwarding()
                     completionHandler(nil)
@@ -113,8 +102,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         flushLogs()
         completionHandler()
     }
-    
-    // MARK: - 日志
     
     private func clearLogs() {
         if let defaults = UserDefaults(suiteName: appGroupId) {
@@ -162,8 +149,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         defaults.set(existing, forKey: "vpn_logs")
         defaults.synchronize()
     }
-    
-    // MARK: - DNS
     
     private func resolveAllDomains(completion: @escaping (Set<String>, Set<String>) -> Void) {
         let group = DispatchGroup()
@@ -240,8 +225,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
     }
     
-    // MARK: - 转发
-    
     private func startForwarding() {
         writeLog("[PacketTunnel] startForwarding 被调用")
         packetFlow.readPackets { [weak self] packets, _ in
@@ -275,26 +258,19 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
                     let ack = (flags & 0x10) != 0
                     let fin = (flags & 0x01) != 0
                     let rst = (flags & 0x04) != 0
-                    let psh = (flags & 0x08) != 0
                     
-                    if dstPort == 80 || dstPort == 443 || packetCount <= 100 {
-                        let flagStr = [syn ? "SYN" : "", ack ? "ACK" : "", fin ? "FIN" : "", rst ? "RST" : "", psh ? "PSH" : ""].filter { !$0.isEmpty }.joined(separator: ",")
-                        writeLog("[TCP IPv4] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) flags=\(flagStr) (目标列表: \(targetIPv4s.contains(dstIP)))")
+                    if dstPort == 80 || packetCount <= 50 {
+                        let flagStr = [syn ? "SYN" : "", ack ? "ACK" : "", fin ? "FIN" : "", rst ? "RST" : ""].filter { !$0.isEmpty }.joined(separator: ",")
+                        writeLog("[TCP IPv4] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) flags=\(flagStr)")
                     }
                 }
             } else if proto == 17 {
                 if packet.count >= 28 {
-                    let srcPort = UInt16(packet[20]) << 8 | UInt16(packet[21])
                     let dstPort = UInt16(packet[22]) << 8 | UInt16(packet[23])
-                    
                     if dstPort == 53 {
-                        writeLog("[DNS IPv4] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                    } else if packetCount <= 50 {
-                        writeLog("[UDP IPv4] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
+                        writeLog("[DNS IPv4] #\(packetCount) UDP \(srcIP):\(packet[20]) -> \(dstIP):53")
                     }
                 }
-            } else if packetCount <= 20 {
-                writeLog("[Packet IPv4] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
             }
             
             processIPv4Packet(packet)
@@ -310,10 +286,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let dstIP = "\(packet[16]).\(packet[17]).\(packet[18]).\(packet[19])"
         
         guard proto == 6 else { return }
-        
-        if !targetIPv4s.contains(dstIP) {
-            return
-        }
+        guard targetIPv4s.contains(dstIP) else { return }
         
         let ihl = Int(packet[0] & 0x0F) * 4
         guard packet.count >= ihl + 20 else { return }
@@ -322,12 +295,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
         let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
         
-        writeLog("[命中 IPv4] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-        
-        guard dstPort == 80 || dstPort == 443 else {
-            writeLog("[跳过] 非80/443端口: \(dstPort)")
+        guard dstPort == 80 else {
+            writeLog("[跳过] 非80端口: \(dstPort)")
             return
         }
+        
+        writeLog("[命中 IPv4] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
         
         let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
         handleTCPConnection(key: key, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, isIPv6: false, packet: packet)
@@ -346,33 +319,11 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
             if packet.count >= 54 {
                 let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
                 let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
-                let flags = packet[40 + 13]
-                let syn = (flags & 0x02) != 0
-                let ack = (flags & 0x10) != 0
-                let fin = (flags & 0x01) != 0
-                let rst = (flags & 0x04) != 0
-                let psh = (flags & 0x08) != 0
                 
-                if (dstPort == 80 || dstPort == 443 || packetCount <= 100) && !dstIP.hasPrefix("ff02") {
-                    let flagStr = [syn ? "SYN" : "", ack ? "ACK" : "", fin ? "FIN" : "", rst ? "RST" : "", psh ? "PSH" : ""].filter { !$0.isEmpty }.joined(separator: ",")
-                    let isMappedIPv4 = dstIP.contains(".")
-                    let targetList = isMappedIPv4 ? targetIPv4s : targetIPv6s
-                    writeLog("[TCP IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) flags=\(flagStr) (目标列表: \(targetList.contains(dstIP)), isMappedIPv4=\(isMappedIPv4))")
+                if (dstPort == 80 || packetCount <= 50) && !dstIP.hasPrefix("ff02") {
+                    writeLog("[TCP IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
                 }
             }
-        } else if proto == 17 {
-            if packet.count >= 48 {
-                let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
-                let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
-                
-                if dstPort == 53 && !dstIP.hasPrefix("ff02") {
-                    writeLog("[DNS IPv6] #\(packetCount) UDP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                } else if packetCount <= 50 && !dstIP.hasPrefix("ff02") {
-                    writeLog("[UDP IPv6] #\(packetCount) \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                }
-            }
-        } else if packetCount <= 20 && !dstIP.hasPrefix("ff02") {
-            writeLog("[Packet IPv6] #\(packetCount) proto=\(proto) \(srcIP) -> \(dstIP)")
         }
         
         guard proto == 6 else { return }
@@ -384,12 +335,12 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         let srcPort = UInt16(packet[40]) << 8 | UInt16(packet[41])
         let dstPort = UInt16(packet[42]) << 8 | UInt16(packet[43])
         
-        writeLog("[命中 IPv6] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort) (isMappedIPv4=\(isMappedIPv4))")
-        
-        guard dstPort == 80 || dstPort == 443 else {
-            writeLog("[跳过] 非80/443端口: \(dstPort)")
+        guard dstPort == 80 else {
+            writeLog("[跳过] 非80端口: \(dstPort)")
             return
         }
+        
+        writeLog("[命中 IPv6] TCP \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
         
         let key = "\(srcIP):\(srcPort)-\(dstIP):\(dstPort)"
         handleTCPConnection(key: key, srcIP: srcIP, srcPort: srcPort, dstIP: dstIP, dstPort: dstPort, isIPv6: !isMappedIPv4, packet: packet)
@@ -424,39 +375,16 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         return parts.joined(separator: ":")
     }
     
-    private func normalizeIPv6(_ ip: String) -> String {
-        if ip.hasPrefix("::ffff:") {
-            return String(ip.dropFirst(7))
-        }
-        var addr = in6_addr()
-        if ip.withCString({ inet_pton(AF_INET6, $0, &addr) }) == 1 {
-            return in6AddrToString(&addr)
-        }
-        return ip.lowercased()
-    }
-    
     private func handleTCPConnection(key: String, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, isIPv6: Bool, packet: Data) {
         if let conn = tcpConnections[key] {
             conn.processPacket(packet)
         } else {
-            let isHTTPS = (dstPort == 443)
-            let tls = isHTTPS ? getOrCreateTLS() : nil
-            
-            if isHTTPS && tls == nil {
-                writeLog("[TCP] HTTPS连接但TLS证书不可用，发送RST关闭连接")
-                sendRSTForPacket(packet)
-                return
-            }
-            
             let conn = TCPHandler(
                 packetFlow: packetFlow,
                 srcIP: srcIP, srcPort: srcPort,
                 dstIP: dstIP, dstPort: dstPort,
                 targetHost: targetHost, targetPath: targetPath,
-                isHTTPS: isHTTPS,
                 isIPv6: isIPv6,
-                tlsPrivateKey: tls?.privateKey,
-                tlsCertData: tls?.certData,
                 logger: { [weak self] msg in self?.writeLog(msg) }
             )
             tcpConnections[key] = conn
@@ -464,61 +392,6 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         
         tcpConnections = tcpConnections.filter { !$0.value.isClosed }
-    }
-    
-    private func sendRSTForPacket(_ packet: Data) {
-        let ihl = Int(packet[0] & 0x0F) * 4
-        guard packet.count >= ihl + 20 else { return }
-        
-        let srcIP = packet.subdata(in: 12..<16)
-        let dstIP = packet.subdata(in: 16..<20)
-        let srcPort = UInt16(packet[ihl]) << 8 | UInt16(packet[ihl+1])
-        let dstPort = UInt16(packet[ihl+2]) << 8 | UInt16(packet[ihl+3])
-        let seqNum = packet.subdata(in: ihl+4..<ihl+8).withUnsafeBytes { $0.load(as: UInt32.self).bigEndian }
-        
-        var rst = Data()
-        // IP头
-        rst.append(contentsOf: [0x45, 0x00, 0x00, 0x28])
-        let id = UInt16.random(in: 1...65535)
-        rst.append(contentsOf: [UInt8(id >> 8), UInt8(id & 0xFF)])
-        rst.append(contentsOf: [0x00, 0x00])
-        rst.append(0x40) // TTL=64
-        rst.append(0x06) // TCP
-        rst.append(contentsOf: [0x00, 0x00]) // checksum placeholder
-        rst.append(dstIP)
-        rst.append(srcIP)
-        
-        // TCP头
-        rst.append(contentsOf: [UInt8(dstPort >> 8), UInt8(dstPort & 0xFF)])
-        rst.append(contentsOf: [UInt8(srcPort >> 8), UInt8(srcPort & 0xFF)])
-        rst.append(contentsOf: [0x00, 0x00, 0x00, 0x00]) // seq=0
-        let ackNum = seqNum + 1
-        rst.append(contentsOf: [UInt8((ackNum >> 24) & 0xFF), UInt8((ackNum >> 16) & 0xFF), UInt8((ackNum >> 8) & 0xFF), UInt8(ackNum & 0xFF)])
-        rst.append(0x50) // data offset=5
-        rst.append(0x14) // RST+ACK
-        rst.append(contentsOf: [0x00, 0x00]) // window=0
-        rst.append(contentsOf: [0x00, 0x00]) // checksum placeholder
-        rst.append(contentsOf: [0x00, 0x00]) // urgent=0
-        
-        // TCP checksum
-        var pseudo = Data()
-        pseudo.append(dstIP)
-        pseudo.append(srcIP)
-        pseudo.append(0x00)
-        pseudo.append(0x06)
-        let tcpLen = UInt16(20)
-        pseudo.append(contentsOf: [UInt8(tcpLen >> 8), UInt8(tcpLen & 0xFF)])
-        pseudo.append(rst.subdata(in: 20..<40))
-        let tcpChecksum = checksum(pseudo)
-        rst[36] = UInt8(tcpChecksum >> 8)
-        rst[37] = UInt8(tcpChecksum & 0xFF)
-        
-        // IP checksum
-        let ipChecksum = checksum(rst.subdata(in: 0..<20))
-        rst[10] = UInt8(ipChecksum >> 8)
-        rst[11] = UInt8(ipChecksum & 0xFF)
-        
-        packetFlow.writePackets([rst], withProtocols: [AF_INET as NSNumber])
     }
     
     private func checksum(_ data: Data) -> UInt16 {
@@ -536,285 +409,7 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
         }
         return UInt16(~sum & 0xFFFF)
     }
-    
-    private func getOrCreateTLS() -> (privateKey: SecKey, certData: Data)? {
-        if let key = tlsPrivateKey, let cert = tlsCertData { return (key, cert) }
-        writeLog("[TLS] 开始生成自签名证书...")
-        let result = createTLSCertificate()
-        if let (key, certData) = result {
-            tlsPrivateKey = key
-            tlsCertData = certData
-            writeLog("[TLS] ✅ 自签名证书生成成功")
-            return (key, certData)
-        } else {
-            writeLog("[TLS] ❌ 自签名证书生成失败!")
-            return nil
-        }
-    }
-    
-    private func createTLSCertificate() -> (SecKey, Data)? {
-        writeLog("[TLS] 开始从预生成数据加载密钥和证书...")
-        
-        if let (privateKey, certData) = loadPreGeneratedTLS() {
-            writeLog("[TLS] 预生成数据加载成功，密钥: \(preGeneratedServerKey.count) bytes, 证书: \(preGeneratedServerCert.count) bytes")
-            return (privateKey, certData)
-        }
-        
-        writeLog("[TLS] 预生成数据加载失败，尝试动态生成证书...")
-        return generateDynamicCertificate()
-    }
-    
-    private func loadPreGeneratedTLS() -> (SecKey, Data)? {
-        let keyData = Data(preGeneratedServerKey)
-        let certData = Data(preGeneratedServerCert)
-        
-        writeLog("[TLS] 预生成私钥长度: \(keyData.count) bytes")
-        writeLog("[TLS] 预生成证书长度: \(certData.count) bytes")
-        
-        if keyData.count >= 4 {
-            let format = detectKeyFormat(keyData)
-            writeLog("[TLS] 检测到的私钥格式: \(format)")
-        }
-        
-        if keyData.count < 100 {
-            writeLog("[TLS] ⚠️ 私钥数据太短 (\(keyData.count) bytes)，可能被截断")
-            return nil
-        }
-        
-        let keyDict: [String: Any] = [
-            kSecAttrKeyType as String: kSecAttrKeyTypeRSA,
-            kSecAttrKeyClass as String: kSecAttrKeyClassPrivate,
-            kSecAttrKeySizeInBits as String: 2048
-        ]
-        
-        var error: Unmanaged<CFError>?
-        guard let privateKey = SecKeyCreateWithData(keyData as CFData, keyDict as CFDictionary, &error) else {
-            let errDesc = error?.takeRetainedValue().localizedDescription ?? "未知错误"
-            writeLog("[TLS] 从数据创建私钥失败: \(errDesc)")
-            return nil
-        }
-        
-        writeLog("[TLS] 私钥创建成功")
-        return (privateKey, certData)
-    }
-    
-    private func detectKeyFormat(_ data: Data) -> String {
-        let bytes = [UInt8](data)
-        if bytes.count < 10 {
-            return "数据太短"
-        }
-        
-        if bytes[0] == 0x30 {
-            if bytes.count >= 26 && 
-               bytes[2] == 0x02 && bytes[3] == 0x01 && bytes[4] == 0x00 &&
-               bytes[5] == 0x30 &&
-               bytes[7] == 0x06 {
-                return "PKCS#8 (PrivateKeyInfo)"
-            }
-            if bytes.count >= 10 &&
-               bytes[2] == 0x02 && bytes[3] == 0x01 && bytes[4] == 0x00 {
-                return "PKCS#1 (RSAPrivateKey)"
-            }
-            return "ASN.1 SEQUENCE (可能是PKCS#1或PKCS#8)"
-        }
-        
-        if bytes.count >= 4 && 
-           bytes[0] == 0x2D && bytes[1] == 0x2D && bytes[2] == 0x2D && bytes[3] == 0x2D {
-            return "PEM 格式"
-        }
-        
-        return "未知格式"
-    }
-    
-    private func generateDynamicCertificate() -> (SecKey, Data)? {
-        writeLog("[TLS] 动态生成 RSA 密钥对...")
-        let certGen = CertificateGenerator()
-        guard let (privateKey, publicKey) = certGen.generateRSAKeyPair(keySize: 2048) else {
-            writeLog("[TLS] 生成密钥对失败")
-            return nil
-        }
-        writeLog("[TLS] 密钥对生成成功")
-        
-        writeLog("[TLS] 生成自签名证书（使用CA证书模板）...")
-        guard let certData = generateServerCertificateUsingCATemplate(privateKey: privateKey, publicKey: publicKey) else {
-            writeLog("[TLS] 生成证书失败")
-            return nil
-        }
-        writeLog("[TLS] 证书生成成功，大小: \(certData.count) bytes")
-        
-        guard SecCertificateCreateWithData(nil, certData as CFData) != nil else {
-            writeLog("[TLS] 验证证书失败 - 无法从数据创建证书对象")
-            return nil
-        }
-        writeLog("[TLS] 证书验证通过")
-        
-        return (privateKey, certData)
-    }
-    
-    private func generateServerCertificateUsingCATemplate(privateKey: SecKey, publicKey: SecKey) -> Data? {
-        let serialNumber = Data([0x01, 0x02, 0x03, 0x04, 0x05])
-        
-        let now = Date()
-        let notBefore = now
-        let notAfter = Calendar.current.date(byAdding: .year, value: 10, to: now) ?? now
-        
-        let subject: [String: String] = [
-            "CN": "apis.map.qq.com",
-            "O": "WarZoneChanger",
-            "OU": "VPN",
-            "C": "CN"
-        ]
-        
-        let certGen = CertificateGenerator()
-        let issuerName = certGen.encodeName(subject)
-        
-        var tbsCertBuilder = [UInt8]()
-        tbsCertBuilder.append(0x30)
-        
-        var tbsContent = [UInt8]()
-        
-        tbsContent.append(0x02)
-        tbsContent.append(contentsOf: certGen.encodeLength(serialNumber.count))
-        tbsContent.append(contentsOf: serialNumber)
-        
-        tbsContent.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
-        
-        tbsContent.append(contentsOf: issuerName)
-        
-        tbsContent.append(0x30)
-        tbsContent.append(contentsOf: certGen.encodeLength(certGen.encodeDate(notBefore).count + certGen.encodeDate(notAfter).count))
-        tbsContent.append(contentsOf: certGen.encodeDate(notBefore))
-        tbsContent.append(contentsOf: certGen.encodeDate(notAfter))
-        
-        tbsContent.append(contentsOf: issuerName)
-        
-        guard let publicKeyData = certGen.exportPublicKey(publicKey) else {
-            writeLog("[TLS] 导出公钥失败")
-            return nil
-        }
-        tbsContent.append(contentsOf: publicKeyData)
-        
-        var extensions = [UInt8]()
-        extensions.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x13, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x30, 0x02, 0x01, 0x01])
-        extensions.append(contentsOf: [0x30, 0x0E, 0x06, 0x03, 0x55, 0x1D, 0x0F, 0x01, 0x01, 0xFF, 0x04, 0x04, 0x03, 0x02, 0x01, 0x06])
-        
-        var extensionsWrapper = [UInt8]()
-        extensionsWrapper.append(0x30)
-        extensionsWrapper.append(contentsOf: certGen.encodeLength(extensions.count))
-        extensionsWrapper.append(contentsOf: extensions)
-        
-        tbsContent.append(0xA3)
-        tbsContent.append(contentsOf: certGen.encodeLength(extensionsWrapper.count))
-        tbsContent.append(contentsOf: extensionsWrapper)
-        
-        tbsCertBuilder.append(contentsOf: certGen.encodeLength(tbsContent.count))
-        tbsCertBuilder.append(contentsOf: tbsContent)
-        
-        let tbsCert = Data(tbsCertBuilder)
-        
-        guard let signature = certGen.signData(tbsCert, with: privateKey) else {
-            writeLog("[TLS] 签名失败")
-            return nil
-        }
-        
-        var finalCert = [UInt8]()
-        finalCert.append(0x30)
-        finalCert.append(contentsOf: certGen.encodeLength(tbsCert.count + 15 + signature.count + 2 + 1))
-        finalCert.append(contentsOf: tbsCert)
-        finalCert.append(contentsOf: [0x30, 0x0D, 0x06, 0x09, 0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B, 0x05, 0x00])
-        finalCert.append(0x03)
-        finalCert.append(contentsOf: certGen.encodeLength(signature.count + 1))
-        finalCert.append(0x00)
-        finalCert.append(contentsOf: signature)
-        
-        return Data(finalCert)
-    }
-    
-    private func buildX509Certificate(publicKeyData: Data, privateKey: SecKey) -> Data? {
-        // DER 编码辅助
-        func derLen(_ len: Int) -> Data {
-            if len < 128 { return Data([UInt8(len)]) }
-            if len < 256 { return Data([0x81, UInt8(len)]) }
-            return Data([0x82, UInt8(len >> 8), UInt8(len & 0xFF)])
-        }
-        func seq(_ d: Data) -> Data { Data([0x30]) + derLen(d.count) + d }
-        func oid(_ bytes: [UInt8]) -> Data {
-            var r = Data([bytes[0] * 40 + bytes[1]])
-            for i in 2..<bytes.count {
-                var val = Int(bytes[i])
-                var enc: [UInt8] = [UInt8(val & 0x7F)]
-                val >>= 7
-                while val > 0 { enc.append(UInt8(val & 0x7F) | 0x80); val >>= 7 }
-                r.append(contentsOf: enc.reversed())
-            }
-            return Data([0x06]) + derLen(r.count) + r
-        }
-        func utcTime(_ d: Date) -> Data {
-            let f = DateFormatter(); f.dateFormat = "yyMMddHHmmss'Z'"
-            f.timeZone = TimeZone(secondsFromGMT: 0)
-            let s = f.string(from: d).data(using: .ascii)!
-            return Data([0x17]) + derLen(s.count) + s
-        }
-        func printableStr(_ s: String) -> Data {
-            let d = s.data(using: .ascii)!
-            return Data([0x0C]) + derLen(d.count) + d
-        }
-        
-        // 签名算法: sha256WithRSAEncryption (1.2.840.113549.1.1.11)
-        let sigAlgOID = oid([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x0B])
-        let sigAlg = seq(sigAlgOID + Data([0x05, 0x00]))
-        
-        // Issuer & Subject
-        let cnOID = oid([0x55, 0x04, 0x03]) // commonName
-        let cn = printableStr("apis.map.qq.com")
-        let rdn = seq(cnOID + cn)
-        let name = seq(Data([0x31]) + derLen(rdn.count) + rdn) // SET { SEQUENCE { ... } }
-        
-        // Validity
-        let now = Date()
-        let tenYears = Date().addingTimeInterval(10 * 365 * 24 * 3600)
-        let validity = seq(utcTime(now) + utcTime(tenYears))
-        
-        // SubjectPublicKeyInfo
-        let rsaOID = oid([0x2A, 0x86, 0x48, 0x86, 0xF7, 0x0D, 0x01, 0x01, 0x01])
-        let spkiAlg = seq(rsaOID + Data([0x05, 0x00]))
-        let pubKeyBits = Data([0x00]) + publicKeyData
-        let pubKeyBS = Data([0x03]) + derLen(pubKeyBits.count) + pubKeyBits
-        let spki = seq(spkiAlg + pubKeyBS)
-        
-        // TBSCertificate
-        let version = Data([0xA0, 0x03, 0x02, 0x01, 0x02])
-        let serial = Data([0x02, 0x01, 0x01])
-        let tbsInner = version + serial + sigAlg + name + validity + name + spki
-        let tbs = seq(tbsInner)
-        
-        // 签名
-        writeLog("[TLS] 开始证书签名...")
-        var error: Unmanaged<CFError>?
-        guard let sig = SecKeyCreateSignature(privateKey, .rsaSignatureDigestPKCS1v15SHA256, tbs as CFData, &error) as Data? else {
-            let errMsg = error?.takeRetainedValue().localizedDescription ?? "?"
-            writeLog("[TLS] 证书签名失败: \(errMsg)")
-            return nil
-        }
-        writeLog("[TLS] 证书签名成功")
-        let sigBS = Data([0x03]) + derLen(sig.count + 1) + Data([0x00]) + sig
-        
-        // 完整证书
-        let certInner = tbsInner + sigAlg + sigBS
-        return Data([0x30, 0x82]) + UInt16(certInner.count).bigEndian.data + certInner
-    }
 }
-
-// MARK: - UInt16 → Data 扩展
-
-extension UInt16 {
-    var data: Data {
-        var v = self.bigEndian
-        return Data(bytes: &v, count: 2)
-    }
-}
-
-// MARK: - TCP 连接处理器
 
 class TCPHandler {
     let packetFlow: NEPacketTunnelFlow
@@ -824,10 +419,7 @@ class TCPHandler {
     let dstPort: UInt16
     let targetHost: String
     let targetPath: String
-    let isHTTPS: Bool
     let isIPv6: Bool
-    let tlsPrivateKey: SecKey?
-    let tlsCertData: Data?
     let logger: (String) -> Void
     
     var seq: UInt32 = arc4random()
@@ -836,14 +428,9 @@ class TCPHandler {
     var httpBuffer = Data()
     var isClosed = false
     
-    // 纯 Swift TLS 引擎（不依赖 keychain）
-    private var tlsEngine: TLSEngine?
-    private var tlsInBuffer = Data()
-    private var tlsHandshakeDone = false
+    enum State { case closed, synRecv, established, intercepted }
     
-    enum State { case closed, synRecv, established, tlsHandshake, tlsEstablished, intercepted }
-    
-    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, isHTTPS: Bool, isIPv6: Bool, tlsPrivateKey: SecKey?, tlsCertData: Data?, logger: @escaping (String) -> Void) {
+    init(packetFlow: NEPacketTunnelFlow, srcIP: String, srcPort: UInt16, dstIP: String, dstPort: UInt16, targetHost: String, targetPath: String, isIPv6: Bool, logger: @escaping (String) -> Void) {
         self.packetFlow = packetFlow
         self.srcIP = srcIP
         self.srcPort = srcPort
@@ -851,10 +438,7 @@ class TCPHandler {
         self.dstPort = dstPort
         self.targetHost = targetHost
         self.targetPath = targetPath
-        self.isHTTPS = isHTTPS
         self.isIPv6 = isIPv6
-        self.tlsPrivateKey = tlsPrivateKey
-        self.tlsCertData = tlsCertData
         self.logger = logger
     }
     
@@ -878,19 +462,8 @@ class TCPHandler {
             
         case .synRecv:
             if ackF {
-                state = isHTTPS ? .tlsHandshake : .established
+                state = .established
                 logger("[TCP] 握手完成: \(srcIP):\(srcPort) -> \(dstIP):\(dstPort)")
-                
-                if isHTTPS {
-                    initTLSEngine()
-                }
-            }
-            
-        case .tlsHandshake:
-            if !payload.isEmpty {
-                ack = seqNum! + UInt32(payload.count)
-                sendACK()
-                feedTLSData(payload)
             }
             
         case .established:
@@ -903,18 +476,6 @@ class TCPHandler {
                 ack = seqNum! + UInt32(payload.count)
                 sendACK()
                 handleHTTPData(payload)
-            }
-            
-        case .tlsEstablished:
-            if fin {
-                sendFinAck(seqNum: seqNum!)
-                state = .closed; isClosed = true
-            } else if rst {
-                state = .closed; isClosed = true
-            } else if !payload.isEmpty {
-                ack = seqNum! + UInt32(payload.count)
-                sendACK()
-                feedTLSPayload(payload)
             }
             
         case .intercepted:
@@ -946,140 +507,24 @@ class TCPHandler {
         }
     }
     
-    // MARK: - TLS (纯 Swift TLSEngine)
-    
-    private func initTLSEngine() {
-        guard let privateKey = tlsPrivateKey, let certData = tlsCertData else {
-            logger("[TLS] 无证书，关闭连接")
-            sendRST()
-            state = .closed; isClosed = true
-            return
-        }
-        logger("[TLS] 证书数据长度: \(certData.count)")
-        
-        guard let certificate = SecCertificateCreateWithData(nil, certData as CFData) else {
-            logger("[TLS] 创建证书对象失败")
-            sendRST()
-            state = .closed; isClosed = true
-            return
-        }
-        
-        guard let engine = TLSEngine(privateKey: privateKey, certificate: certificate, certData: certData) else {
-            logger("[TLS] 创建TLS引擎失败")
-            sendRST()
-            state = .closed; isClosed = true
-            return
-        }
-        
-        tlsEngine = engine
-        logger("[TLS] ✅ TLS引擎已初始化")
-    }
-    
-    private func feedTLSData(_ data: Data) {
-        guard let engine = tlsEngine else { return }
-        
-        tlsInBuffer.append(data)
-        logger("[TLS] 收到客户端数据 \(data.count) bytes, 缓冲 \(tlsInBuffer.count) bytes")
-        
-        let result = engine.process(tlsInBuffer)
-        tlsInBuffer.removeAll()
-        
-        let proto = isIPv6 ? AF_INET6 : AF_INET
-        
-        // 发送输出
-        if !engine.outputBuffer.isEmpty {
-            let out = engine.outputBuffer
-            engine.outputBuffer.removeAll()
-            let pkt = buildTCPPacket(flags: 0x18, payload: out)
-            packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
-            seq += UInt32(out.count)
-            logger("[TLS] 发送握手数据 \(out.count) bytes")
-        }
-        
-        switch result {
-        case .handshakeDone:
-            if !engine.outputBuffer.isEmpty {
-                let out = engine.outputBuffer
-                engine.outputBuffer.removeAll()
-                let pkt = buildTCPPacket(flags: 0x18, payload: out)
-                packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
-                seq += UInt32(out.count)
-                logger("[TLS] 发送握手数据 \(out.count) bytes")
-            }
-            if !tlsHandshakeDone {
-                tlsHandshakeDone = true
-                state = .tlsEstablished
-                logger("[TLS] ✅ 握手完成! 等待HTTP请求")
-            }
-        case .needMoreData:
-            logger("[TLS] 等待更多客户端数据...")
-        case .appData(let plaintext):
-            if !tlsHandshakeDone {
-                tlsHandshakeDone = true
-                state = .tlsEstablished
-                logger("[TLS] ✅ 握手完成! 收到应用数据")
-            }
-            handleHTTPData(plaintext)
-        case .error(let msg):
-            logger("[TLS] ❌ 错误: \(msg)")
-            sendRST()
-            state = .closed; isClosed = true
-        }
-    }
-    
-    private func feedTLSPayload(_ data: Data) {
-        guard let engine = tlsEngine, tlsHandshakeDone else { return }
-        
-        tlsInBuffer.append(data)
-        let result = engine.process(tlsInBuffer)
-        tlsInBuffer.removeAll()
-        
-        switch result {
-        case .appData(let plaintext):
-            handleHTTPData(plaintext)
-        case .error(let msg):
-            logger("[TLS] ❌ 解密错误: \(msg)")
-            sendRST()
-            state = .closed; isClosed = true
-        default:
-            break
-        }
-    }
-    
-    // MARK: - HTTP
-    
     private func handleHTTPData(_ data: Data) {
         httpBuffer.append(data)
         
-        guard let httpStr = String(data: httpBuffer, encoding: .utf8) else { 
-            logger("[HTTP] 无法解码UTF8，尝试其他编码...")
-            if let altStr = String(data: httpBuffer, encoding: .ascii) {
-                logger("[HTTP] ASCII解码成功，长度: \(altStr.count)")
-                processHTTPRequest(altStr)
-            } else {
-                logger("[HTTP] 所有编码失败，数据长度: \(httpBuffer.count)")
-            }
-            return 
+        guard let httpStr = String(data: httpBuffer, encoding: .utf8) else {
+            logger("[HTTP] 无法解码UTF8，长度: \(httpBuffer.count)")
+            return
         }
         
-        processHTTPRequest(httpStr)
-    }
-    
-    private func processHTTPRequest(_ httpStr: String) {
-        guard httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") else { 
+        guard httpStr.contains("\r\n\r\n") || httpStr.contains("\n\n") else {
             logger("[HTTP] 等待更多数据... (已缓冲 \(httpBuffer.count) bytes)")
-            return 
+            return
         }
         
         let requestPreview = String(httpStr.prefix(500))
-        logger("[HTTP] 收到请求:")
-        logger("[HTTP] 请求预览: \(requestPreview.replacingOccurrences(of: "\r\n", with: " | "))")
+        logger("[HTTP] 收到请求: \(requestPreview.replacingOccurrences(of: "\r\n", with: " | "))")
         
         let lowercased = httpStr.lowercased()
-        
-        let isMapRequest = lowercased.contains("map.qq.com") || 
-                           lowercased.contains("ditu.qq.com") ||
-                           lowercased.contains("apis.map.qq.com")
+        let isMapRequest = lowercased.contains("map.qq.com") || lowercased.contains("ditu.qq.com") || lowercased.contains("apis.map.qq.com")
         
         if isMapRequest {
             logger("[HTTP] ✅ 检测到腾讯地图域名请求")
@@ -1089,10 +534,9 @@ class TCPHandler {
         logger("[HTTP] API类型: \(apiType)")
         
         if apiType == .unknown && isMapRequest {
-            logger("[HTTP] ⚠️ API类型未知，但检测到地图域名，尝试泛化匹配")
             if lowercased.contains("/ws/") || lowercased.contains("geocoder") || lowercased.contains("location") {
                 apiType = .reverseGeocoder
-                logger("[HTTP] ✅ 泛化匹配成功，使用 reverseGeocoder")
+                logger("[HTTP] ✅ 泛化匹配成功")
             }
         }
         
@@ -1101,24 +545,15 @@ class TCPHandler {
             state = .intercepted
             sendFakeResponse(apiType: apiType)
         } else if isMapRequest {
-            logger("[HTTP] ⚠️ 相关地图域名请求，检查是否需要拦截")
-            if lowercased.contains("/ws/geocoder") || lowercased.contains("/geocoder") || lowercased.contains("/ws/district") || lowercased.contains("/ws/location") {
-                logger("[HTTP] ✅ 发现腾讯地图API请求，返回假响应")
-                state = .intercepted
-                sendFakeResponse(apiType: .reverseGeocoder)
-            } else {
-                logger("[HTTP] ⚠️ 非目标API，但属于地图域名，尝试返回默认假响应")
-                state = .intercepted
-                sendFakeResponse(apiType: .reverseGeocoder)
-            }
+            logger("[HTTP] ✅ 地图域名请求，返回假响应")
+            state = .intercepted
+            sendFakeResponse(apiType: .reverseGeocoder)
         } else {
             logger("[HTTP] ⚠️ 非目标请求，关闭连接")
             sendRST()
             state = .closed; isClosed = true
         }
     }
-    
-    // MARK: - TCP 发包
     
     private func sendSynAck() {
         let pkt = buildTCPPacket(flags: 0x12, payload: Data())
@@ -1147,24 +582,26 @@ class TCPHandler {
         packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
     }
     
+    func close() {
+        if state != .closed {
+            sendRST()
+            state = .closed
+            isClosed = true
+        }
+    }
+    
     private func sendFakeResponse(apiType: LocationInjector.APIType = .reverseGeocoder) {
         let location = LocationStore.shared.getSelectedLocation()
-        logger("[拦截] 读取到的位置: \(location != nil ? "已找到" : "未找到，使用默认值")")
         
         let adcode = location?.adcode ?? "460100"
         let name = location?.name ?? "海口市"
-        let province = location?.province ?? "海南省"
-        let city = location?.city ?? "海口市"
         
-        logger("[拦截] ✅ API类型: \(apiType)")
-        logger("[拦截] ✅ 位置: \(province) \(city) \(name) (adcode: \(adcode))")
-        logger("[拦截] isHTTPS: \(isHTTPS), isIPv6: \(isIPv6)")
+        logger("[拦截] ✅ 位置: \(name) (adcode: \(adcode))")
         
         let fakeBody = LocationInjector.shared.buildFakeResponse(for: apiType, adcode: adcode, regionName: name)
         let bodyData = fakeBody.data(using: .utf8) ?? Data()
         
         logger("[拦截] 假响应体长度: \(bodyData.count) bytes")
-        logger("[拦截] 假响应预览: \(fakeBody.prefix(300))")
         
         let response = "HTTP/1.1 200 OK\r\n" +
             "Content-Type: application/json; charset=utf-8\r\n" +
@@ -1176,33 +613,15 @@ class TCPHandler {
         responseData.append(bodyData)
         
         logger("[HTTP] ✅ 发送假响应 (\(responseData.count) bytes)")
-        logger("[HTTP] 响应头: \(response.replacingOccurrences(of: "\r\n", with: " | "))")
         
         let proto = isIPv6 ? AF_INET6 : AF_INET
-        
-        if isHTTPS, let engine = tlsEngine, tlsHandshakeDone {
-            logger("[TLS] 加密中...")
-            guard let encrypted = engine.encryptApplicationData(responseData) else {
-                logger("[TLS] ❌ 加密假响应失败")
-                sendRST()
-                state = .closed; isClosed = true
-                return
-            }
-            let pkt = buildTCPPacket(flags: 0x18, payload: encrypted)
-            packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
-            seq += UInt32(encrypted.count)
-            logger("[TLS] ✅ 已加密发送 \(encrypted.count) bytes")
-        } else {
-            logger("[HTTP] 明文发送中... (isHTTPS: \(isHTTPS), tlsHandshakeDone: \(tlsHandshakeDone))")
-            let pkt = buildTCPPacket(flags: 0x18, payload: responseData)
-            packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
-            seq += UInt32(responseData.count)
-            logger("[HTTP] ✅ 明文发送完成")
-        }
+        let pkt = buildTCPPacket(flags: 0x18, payload: responseData)
+        packetFlow.writePackets([pkt], withProtocols: [proto as NSNumber])
+        seq += UInt32(responseData.count)
         
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { [weak self] in
             guard let self = self else { return }
-            let finPkt = self.buildTCPPacket(flags: 0x19, payload: Data())
+            let finPkt = self.buildTCPPacket(flags: 0x11, payload: Data())
             self.packetFlow.writePackets([finPkt], withProtocols: [proto as NSNumber])
             self.seq += 1
             self.state = .closed
@@ -1249,45 +668,35 @@ class TCPHandler {
         withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
         
         var pseudo = Data()
-        pseudo.append(contentsOf: src)
-        pseudo.append(contentsOf: dst)
-        pseudo.append(0)
-        pseudo.append(6)
-        let tcpSegLen = UInt16(20 + payload.count)
-        withUnsafeBytes(of: tcpSegLen.bigEndian) { pseudo.replaceSubrange(12..<14, with: $0) }
+        pseudo.append(src)
+        pseudo.append(dst)
+        pseudo.append(0x00)
+        pseudo.append(0x06)
+        let tcpLen = UInt16(20 + payload.count)
+        withUnsafeBytes(of: tcpLen.bigEndian) { pseudo.append(contentsOf: $0) }
+        pseudo.append(tcp)
+        pseudo.append(payload)
         
-        var tcpWithPayload = Data()
-        tcpWithPayload.append(tcp)
-        tcpWithPayload.append(payload)
-        
-        var checkData = Data()
-        checkData.append(pseudo)
-        checkData.append(tcpWithPayload)
-        
-        let tcpCheck = checksum(checkData)
+        let tcpCheck = checksum(pseudo)
         withUnsafeBytes(of: tcpCheck.bigEndian) { tcp.replaceSubrange(16..<18, with: $0) }
         
-        var full = Data()
-        full.append(ip)
-        full.append(tcp)
-        full.append(payload)
-        
-        return full
+        var result = ip
+        result.append(tcp)
+        result.append(payload)
+        return result
     }
     
     private func buildIPv6TCPPacket(flags: UInt8, payload: Data) -> Data {
-        let src = parseIPv6(dstIP)
-        let dst = parseIPv6(srcIP)
-        let tcpLen = 20 + payload.count
+        let totalLen = 40 + 20 + payload.count
         
         var ip = Data(count: 40)
-        ip[0] = 0x60 // Version=6, Traffic Class=0, Flow Label=0
-        ip[1] = 0x00
-        ip[2] = 0x00
-        ip[3] = 0x00
-        withUnsafeBytes(of: UInt16(tcpLen).bigEndian) { ip.replaceSubrange(4..<6, with: $0) }
-        ip[6] = 6 // Protocol = TCP
-        ip[7] = 64 // Hop Limit
+        ip[0] = 0x60
+        ip[6] = 6
+        withUnsafeBytes(of: UInt16(totalLen - 40).bigEndian) { ip.replaceSubrange(4..<6, with: $0) }
+        ip[7] = 64
+        
+        let src = parseIPv6(dstIP)
+        let dst = parseIPv6(srcIP)
         ip.replaceSubrange(8..<24, with: src)
         ip.replaceSubrange(24..<40, with: dst)
         
@@ -1302,84 +711,33 @@ class TCPHandler {
         withUnsafeBytes(of: window.bigEndian) { tcp.replaceSubrange(14..<16, with: $0) }
         
         var pseudo = Data()
-        pseudo.append(contentsOf: src)
-        pseudo.append(contentsOf: dst)
-        let tcpSegLen = UInt32(tcpLen).bigEndian
-        withUnsafeBytes(of: tcpSegLen) { pseudo.append(contentsOf: $0) }
-        pseudo.append(0)
-        pseudo.append(0)
-        pseudo.append(0)
-        pseudo.append(6)
+        pseudo.append(src)
+        pseudo.append(dst)
+        let tcpLen = UInt32(20 + payload.count)
+        withUnsafeBytes(of: tcpLen.bigEndian) { pseudo.append(contentsOf: $0) }
+        pseudo.append(0x00)
+        pseudo.append(0x06)
+        withUnsafeBytes(of: UInt16(20 + payload.count).bigEndian) { pseudo.append(contentsOf: $0) }
+        pseudo.append(tcp)
+        pseudo.append(payload)
         
-        var tcpWithPayload = Data()
-        tcpWithPayload.append(tcp)
-        tcpWithPayload.append(payload)
-        
-        var checkData = Data()
-        checkData.append(pseudo)
-        checkData.append(tcpWithPayload)
-        
-        let tcpCheck = checksum(checkData)
+        let tcpCheck = checksum(pseudo)
         withUnsafeBytes(of: tcpCheck.bigEndian) { tcp.replaceSubrange(16..<18, with: $0) }
         
-        var full = Data()
-        full.append(ip)
-        full.append(tcp)
-        full.append(payload)
-        
-        return full
-    }
-    
-    private func parseIPv4(_ s: String) -> [UInt8] {
-        let parts = s.components(separatedBy: ".")
-        guard parts.count == 4 else { return [0, 0, 0, 0] }
-        return parts.compactMap { UInt8($0) }
-    }
-    
-    private func parseIPv6(_ s: String) -> [UInt8] {
-        var result = [UInt8](repeating: 0, count: 16)
-        let parts = s.components(separatedBy: ":")
-        var index = 0
-        var skipIndex = -1
-        
-        for (i, part) in parts.enumerated() {
-            if part.isEmpty {
-                skipIndex = i
-                continue
-            }
-            if let val = UInt16(part, radix: 16) {
-                result[index] = UInt8(val >> 8)
-                result[index + 1] = UInt8(val & 0xFF)
-                index += 2
-            }
-        }
-        
-        if skipIndex != -1 {
-            let remaining = 8 - parts.filter { !$0.isEmpty }.count
-            let shiftAmount = remaining * 2
-            for i in (0..<index).reversed() {
-                result[i + shiftAmount] = result[i]
-                result[i] = 0
-            }
-        }
-        
+        var result = ip
+        result.append(tcp)
+        result.append(payload)
         return result
     }
     
-    private func checksum(_ data: Data) -> UInt16 {
-        var sum: UInt32 = 0
-        var i = 0
-        let count = data.count
-        while i < count {
-            let v = i + 1 < count ? UInt32(data[i]) << 8 | UInt32(data[i + 1]) : UInt32(data[i]) << 8
-            sum += v
-            i += 2
-        }
-        while sum >> 16 != 0 { sum = (sum & 0xffff) + (sum >> 16) }
-        return ~UInt16(sum)
+    private func parseIPv4(_ ip: String) -> Data {
+        let parts = ip.components(separatedBy: ".").compactMap { UInt8($0) }
+        return Data(parts)
     }
     
-    func close() {
-        isClosed = true
+    private func parseIPv6(_ ip: String) -> Data {
+        var addr = in6_addr()
+        _ = ip.withCString { inet_pton(AF_INET6, $0, &addr) }
+        return withUnsafeBytes(of: addr) { Data($0) }
     }
 }
